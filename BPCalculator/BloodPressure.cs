@@ -10,7 +10,8 @@ namespace BPCalculator
         [Display(Name="Low Blood Pressure")] Low,
         [Display(Name="Ideal Blood Pressure")]  Ideal,
         [Display(Name="Pre-High Blood Pressure")] PreHigh,
-        [Display(Name ="High Blood Pressure")]  High
+        [Display(Name ="High Blood Pressure")]  High,
+        [Display(Name ="Incorrect Pressure Range")]  IncorrectRange
     };
 
     public class BloodPressure
@@ -19,7 +20,6 @@ namespace BPCalculator
         public const int SystolicMax = 190;
         public const int DiastolicMin = 40;
         public const int DiastolicMax = 100;
-        public const Name invalidRange = "Invalid Blood Pressure Range";
 
         [Range(SystolicMin, SystolicMax, ErrorMessage = "Invalid Systolic Value")]
         public int Systolic { get; set; }                       // mmHG
@@ -82,8 +82,8 @@ namespace BPCalculator
                 
                 if(this.diastolicCategory == this.systolicCategory){
                     return diastolicCategory;
-                } else{
-                    return invalidRange;
+                } else {
+                    return IncorrectRange;
                 }
                                      
             }
