@@ -11,7 +11,6 @@ namespace BPCalculator
         [Display(Name="Ideal Blood Pressure")]  Ideal,
         [Display(Name="Pre-High Blood Pressure")] PreHigh,
         [Display(Name ="High Blood Pressure")]  High
-        //[Display(Name ="Incorrect Pressure Range")]  IncorrectRange
     };
 
     public class BloodPressure
@@ -42,13 +41,13 @@ namespace BPCalculator
             get{
 
                 if(Systolic >=70 && Systolic <=90 ){
-                    BPCategory.Low;
+                    return BPCategory.Low;
                 } else if(Systolic >90 && Systolic <=120 ){
-                    BPCategory.Ideal;
+                    return BPCategory.Ideal;
                 }else if(Systolic >120 && Systolic <=140 ){
-                    BPCategory.PreHigh;
+                    return BPCategory.PreHigh;
                 }else if(Systolic >140 && Systolic <=190 ){
-                    BPCategory.High;
+                    return BPCategory.High;
                 }
                 
             }
@@ -60,13 +59,13 @@ namespace BPCalculator
             get{
 
                 if(Diastolic >=40 && Diastolic <=60 ){
-                    BPCategory.Low;
+                    return BPCategory.Low;
                 } else if(Diastolic >60 && Diastolic <=80 ){
-                    BPCategory.Ideal;
+                    return BPCategory.Ideal;
                 }else if(Diastolic >80 && Diastolic <=90 ){
-                    BPCategory.PreHigh;
+                    return BPCategory.PreHigh;
                 }else if(Diastolic >90 && Diastolic <=100 ){
-                    BPCategory.High;
+                    return BPCategory.High;
                 }
                 
             }
