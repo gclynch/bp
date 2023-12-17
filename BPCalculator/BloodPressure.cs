@@ -36,40 +36,40 @@ namespace BPCalculator
         // IBP: 90-120/60-80
         // LOW: 70-90/40-60
         // Calculate systolic category
-        public BPCategory systolicCategory
-        {
-            get{
+        // public BPCategory systolicCategory
+        // {
+        //     get{
 
-                if(Systolic >=70 && Systolic <=90 ){
-                    return BPCategory.Low;
-                } else if(Systolic >90 && Systolic <=120 ){
-                    return BPCategory.Ideal;
-                }else if(Systolic >120 && Systolic <=140 ){
-                    return BPCategory.PreHigh;
-                }else if(Systolic >140 && Systolic <=190 ){
-                    return BPCategory.High;
-                }
+        //         if(Systolic >=70 && Systolic <=90 ){
+        //             return BPCategory.Low;
+        //         } else if(Systolic >90 && Systolic <=120 ){
+        //             return BPCategory.Ideal;
+        //         }else if(Systolic >120 && Systolic <=140 ){
+        //             return BPCategory.PreHigh;
+        //         }else if(Systolic >140 && Systolic <=190 ){
+        //             return BPCategory.High;
+        //         }
                 
-            }
-        }
+        //     }
+        // }
 
-        // Calculate Diastolic category
-        public BPCategory diastolicCategory
-        {
-            get{
+        // // Calculate Diastolic category
+        // public BPCategory diastolicCategory
+        // {
+        //     get{
 
-                if(Diastolic >=40 && Diastolic <=60 ){
-                    return BPCategory.Low;
-                } else if(Diastolic >60 && Diastolic <=80 ){
-                    return BPCategory.Ideal;
-                }else if(Diastolic >80 && Diastolic <=90 ){
-                    return BPCategory.PreHigh;
-                }else if(Diastolic >90 && Diastolic <=100 ){
-                    return BPCategory.High;
-                }
+        //         if(Diastolic >=40 && Diastolic <=60 ){
+        //             return BPCategory.Low;
+        //         } else if(Diastolic >60 && Diastolic <=80 ){
+        //             return BPCategory.Ideal;
+        //         }else if(Diastolic >80 && Diastolic <=90 ){
+        //             return BPCategory.PreHigh;
+        //         }else if(Diastolic >90 && Diastolic <=100 ){
+        //             return BPCategory.High;
+        //         }
                 
-            }
-        }
+        //     }
+        // }
 
         // calculate BP category
         public BPCategory Category
@@ -79,14 +79,22 @@ namespace BPCalculator
                 // implement as part of project
                 //throw new NotImplementedException("not implemented yet");
                 
-                if(this.diastolicCategory == this.systolicCategory){
-                    return diastolicCategory;
-                } 
+                // if(this.diastolicCategory == this.systolicCategory){
+                //     return diastolicCategory;
+                // } 
                 //else 
                // {
                  //   return IncorrectRange;
                 //}
-                                     
+                if((Systolic >=70 && Systolic <=90) && (Diastolic >=40 && Diastolic <=60)){
+                    return BPCategory.Low;
+                } else if((Systolic >90 && Systolic <=120) && (Diastolic >60 && Diastolic <=80)){
+                    return BPCategory.Ideal;
+                }else if((Systolic >120 && Systolic <=140 && (Diastolic >70 && Diastolic <=90)) ){
+                   return  BPCategory.PreHigh;
+                }else if((Systolic >140 && Systolic <=190) && (Diastolic >90 && Diastolic <=100)){
+                    return BPCategory.High;
+                }                     
             }
         }
     }
