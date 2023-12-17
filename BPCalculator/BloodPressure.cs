@@ -54,18 +54,18 @@ namespace BPCalculator
             }
         }
 
-        // Calculate systolic category
+        // Calculate Diastolic category
         public BPCategory diastolicCategory
         {
             get{
 
-                if(Systolic >=40 && Systolic <=60 ){
+                if(Diastolic >=40 && Diastolic <=60 ){
                     BPCategory.Low;
-                } else if(Systolic >60 && Systolic <=80 ){
+                } else if(Diastolic >60 && Diastolic <=80 ){
                     BPCategory.Ideal;
-                }else if(Systolic >80 && Systolic <=90 ){
+                }else if(Diastolic >80 && Diastolic <=90 ){
                     BPCategory.PreHigh;
-                }else if(Systolic >90 && Systolic <=100 ){
+                }else if(Diastolic >90 && Diastolic <=100 ){
                     BPCategory.High;
                 }
                 
