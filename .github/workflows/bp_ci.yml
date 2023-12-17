@@ -17,7 +17,7 @@ jobs:
     - name: Build for Release
       run: dotnet build --configuration Release
     - name: Run unit tests
-      run: dotnet test BMIUnitTestProject/BMIUnitTestProject.csproj --no-restore --collect "Code coverage"
+      run: dotnet test BPUnitTestProject/BPUnitTestProject.csproj --no-restore --collect "Code coverage"
     - name: Publish
       run: dotnet publish -c Release -o '${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp' 
           # Deploy to Azure Web apps
