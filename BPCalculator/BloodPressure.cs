@@ -11,9 +11,9 @@ namespace BPCalculator
         [Display(Name="Ideal Blood Pressure")]  Ideal,
         [Display(Name="Pre-High Blood Pressure")] PreHigh,
         [Display(Name ="High Blood Pressure")]  High,
-        [Display(Name = "Diastolic Value should be between 40 to 60")] LowDiastolic,
-        [Display(Name = "Diastolic Value should be between 60 to 80")] IdealDiastolic,
-        [Display(Name = "Diastolic Value should be between 80 to 90")] PreHighDiastolic,
+        [Display(Name = "Diastolic Value should be between 40 to 59")] LowDiastolic,
+        [Display(Name = "Diastolic Value should be between 60 to 79")] IdealDiastolic,
+        [Display(Name = "Diastolic Value should be between 80 to 89")] PreHighDiastolic,
         [Display(Name = "Diastolic Value should be between 90 to 100")] HighDiastolic,
         [Display(Name = "")] Empty
     };
