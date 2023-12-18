@@ -14,7 +14,8 @@ namespace BPCalculator
         [Display(Name = "Diastolic Value should be between 40 to 60")] LowDiastolic,
         [Display(Name = "Diastolic Value should be between 60 to 80")] IdealDiastolic,
         [Display(Name = "Diastolic Value should be between 80 to 90")] PreHighDiastolic,
-        [Display(Name = "Diastolic Value should be between 90 to 100")] HighDiastolic
+        [Display(Name = "Diastolic Value should be between 90 to 100")] HighDiastolic,
+        [Display(Name = "")] Empty
     };
 
     public class BloodPressure
@@ -118,7 +119,7 @@ namespace BPCalculator
                 }else if(((Systolic >=140 && Systolic <=190) && (Diastolic >=90 && Diastolic <=100)) || (Systolic >140 && Systolic <=190)){
                     return BPCategory.High;
                 }
-                return "";
+                return BPCategory.Empty;
 
                 // if(((Systolic >=70 && Systolic <90) && (Diastolic >=40 && Diastolic <60)) || (Systolic >=70 && Systolic <=90)){
                 //     return BPCategory.Low;
@@ -128,9 +129,8 @@ namespace BPCalculator
                 //    return  BPCategory.PreHigh;
                 // }else if(((Systolic >=140 && Systolic <=190) && (Diastolic >=90 && Diastolic <=100)) || (Systolic >140 && Systolic <=190)){
                 //     return BPCategory.High;
-                // }
-                // return "";                
-              
+                // }                
+             // return BPCategory.Empty;
             }
         }
     }
