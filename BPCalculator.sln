@@ -1,9 +1,17 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30002.166
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BPCalculator", "BPCalculator\BPCalculator.csproj", "{5966DA6C-819D-4303-ADC7-425B8541EC84}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BPCalculator", "BPCalculator\BPCalculator.csproj", "{5966DA6C-819D-4303-ADC7-425B8541EC84}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BPCalculatorUnitTests", "BPCalculatorUnitTests\BPCalculatorUnitTests.csproj", "{817899B4-B601-4427-81C2-80EE65A6A86E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BDDTestBP", "BDDTestBP\BDDTestBP.csproj", "{C7599211-25E5-4655-BCB3-316F5BDFE083}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SeleniumBpTestRuns", "SeleniumBpTestRuns\SeleniumBpTestRuns.csproj", "{60BE5919-A7B8-4AFA-B321-F45C8EA0063B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BDDnewtestproject", "BDDnewtestproject\BDDnewtestproject.csproj", "{8B52A2DE-6FB9-42FD-937D-97142B658379}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +23,22 @@ Global
 		{5966DA6C-819D-4303-ADC7-425B8541EC84}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5966DA6C-819D-4303-ADC7-425B8541EC84}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5966DA6C-819D-4303-ADC7-425B8541EC84}.Release|Any CPU.Build.0 = Release|Any CPU
+		{817899B4-B601-4427-81C2-80EE65A6A86E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{817899B4-B601-4427-81C2-80EE65A6A86E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{817899B4-B601-4427-81C2-80EE65A6A86E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{817899B4-B601-4427-81C2-80EE65A6A86E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C7599211-25E5-4655-BCB3-316F5BDFE083}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7599211-25E5-4655-BCB3-316F5BDFE083}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7599211-25E5-4655-BCB3-316F5BDFE083}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7599211-25E5-4655-BCB3-316F5BDFE083}.Release|Any CPU.Build.0 = Release|Any CPU
+		{60BE5919-A7B8-4AFA-B321-F45C8EA0063B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{60BE5919-A7B8-4AFA-B321-F45C8EA0063B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{60BE5919-A7B8-4AFA-B321-F45C8EA0063B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{60BE5919-A7B8-4AFA-B321-F45C8EA0063B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8B52A2DE-6FB9-42FD-937D-97142B658379}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B52A2DE-6FB9-42FD-937D-97142B658379}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B52A2DE-6FB9-42FD-937D-97142B658379}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B52A2DE-6FB9-42FD-937D-97142B658379}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
