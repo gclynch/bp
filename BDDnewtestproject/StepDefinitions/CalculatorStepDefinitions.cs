@@ -8,6 +8,8 @@ public class BPCalculatorSteps
 {
 
     private BloodPressure BPCalculator;
+    //BPCalculator == "";
+    //BPCalculator.BloodPressure bp = new BPCalculator.BloodPressure();
     private BPCategory Category;
 
     [Given(@"a blood pressure with systolic value (\d+) and diastolic value (\d+)")]
@@ -26,7 +28,7 @@ public class BPCalculatorSteps
         Category = BPCalculator.Category;
     }
 
-    [Then(@"the category should be (.*)")]
+    [Then(@"the category should be low")]
     public void ThenTheCategoryShouldBe(string expectedCategory)
     {
         var expectedBPCategory = Enum.Parse<BPCategory>(expectedCategory);
