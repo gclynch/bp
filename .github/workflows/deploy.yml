@@ -45,7 +45,7 @@ jobs:
     - name: Security Scan
       run: dotnet-security-scan --directory .
       
-    - name: Install Code Analysis
+    - name: Install Code Analysise
       run: |
         dotnet add package SonarAnalyzer.CSharp
         dotnet add package SecurityCodeScan
