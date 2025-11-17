@@ -31,10 +31,35 @@ namespace BPCalculator
         {
             get
             {
-                // implement as part of project
-                //throw new NotImplementedException("not implemented yet");
-                return new BPCategory();                       // replace this
+                // Get categories for systolic and diastolic
+                var systolicCategory = GetSystolicCategory(Systolic);
+                var diastolicCategory = GetDiastolicCategory(Diastolic);
+                
+                // Return the worst category
+                return GetWorstCategory(systolicCategory, diastolicCategory);
             }
+        }
+
+        private BPCategory GetSystolicCategory(int systolic)
+        {
+            if (systolic < 90) return BPCategory.Low;
+            if (systolic <= 120) return BPCategory.Ideal;
+            if (systolic <= 139) return BPCategory.PreHigh;
+            return BPCategory.High;
+        }
+
+        private BPCategory GetDiastolicCategory(int diastolic)
+        {
+            if (diastolic < 60) return BPCategory.Low;
+            if (diastolic <= 80) return BPCategory.Ideal;
+            if (diastolic <= 89) return BPCategory.PreHigh;
+            return BPCategory.High;
+        }
+
+        private BPCategory GetWorstCategory(BPCategory systolicCat, BPCategory diastolicCat)
+        {
+            // Order of severity: Ideal < Low < PreHigh < High
+            return (BPCategory)Math.Max((int)systolicCat, (int)diastolicCat);
         }
     }
 }
