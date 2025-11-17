@@ -50,5 +50,5 @@ jobs:
         dotnet add package SonarAnalyzer.CSharp
         dotnet add package SecurityCodeScan
         
-    - name: Run Code Analysises
+    - name: Run Code Analysis
       run: dotnet build --configuration Release /p:TreatWarningsAsErrors=true
