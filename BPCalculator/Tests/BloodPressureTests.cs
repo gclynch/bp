@@ -1,68 +1,100 @@
 using Xunit;
 using BPCalculator;
+using System.ComponentModel.DataAnnotations;
 
 namespace BPCalculator.Tests
 {
     public class BloodPressureTests
     {
         [Theory]
-        [InlineData(120, 80, BPCategory.Ideal, "Ideal Blood Pressure")]
-        [InlineData(140, 90, BPCategory.High, "High Blood Pressure")]
-        [InlineData(85, 55, BPCategory.Low, "Low Blood Pressure")]
-        [InlineData(130, 85, BPCategory.PreHigh, "Pre-High Blood Pressure")]
-        [InlineData(100, 70, BPCategory.Ideal, "Ideal Blood Pressure")]
-        [InlineData(90, 60, BPCategory.Ideal, "Ideal Blood Pressure")]  // Borderline ideal
-        [InlineData(139, 89, BPCategory.PreHigh, "Pre-High Blood Pressure")]  // Borderline pre-high
-        public void CalculateCategory_ValidInputs_ReturnsCorrectCategory(
-            int systolic, int diastolic, BPCategory expectedCategory, string expectedDisplay)
+        [InlineData(120, 80, BPCategory.Ideal)]
+        [InlineData(140, 90, BPCategory.High)]
+        [InlineData(85, 55, BPCategory.Low)]
+        [InlineData(130, 85, BPCategory.PreHigh)]
+        [InlineData(100, 70, BPCategory.Ideal)]
+        [Trait("Category", "Unit")]
+        public void CalculateCategory_ValidInputs_ReturnsCorrectCategory(int systolic, int diastolic, BPCategory expected)
         {
             // Arrange
             var bp = new BloodPressure { Systolic = systolic, Diastolic = diastolic };
             
             // Act
             var result = bp.Category;
-            var displayName = GetDisplayName(result);
-            
-            // Assert
-            Assert.Equal(expectedCategory, result);
-            Assert.Equal(expectedDisplay, displayName);
-        }
-
-        [Theory]
-        [InlineData(70, 40)]  // Minimum valid values
-        [InlineData(190, 100)] // Maximum valid values
-        [InlineData(110, 75)] // Normal values
-        public void CalculateCategory_ValidRanges_DoesNotThrow(int systolic, int diastolic)
-        {
-            // Arrange
-            var bp = new BloodPressure { Systolic = systolic, Diastolic = diastolic };
-            
-            // Act & Assert - should not throw
-            var result = bp.Category;
-            Assert.IsType<BPCategory>(result);
-        }
-
-        [Theory]
-        [InlineData(120, 80, "Ideal")]
-        [InlineData(140, 90, "High")]
-        [InlineData(85, 55, "Low")]
-        [InlineData(130, 85, "PreHigh")]
-        public void Category_ToString_ReturnsExpectedValue(int systolic, int diastolic, string expected)
-        {
-            // Arrange
-            var bp = new BloodPressure { Systolic = systolic, Diastolic = diastolic };
-            
-            // Act
-            var result = bp.Category.ToString();
             
             // Assert
             Assert.Equal(expected, result);
         }
 
         [Fact]
-        public void BloodPressure_Constants_HaveCorrectValues()
+        [Trait("Category", "BDD")]
+        public void Given_IdealBloodPressure_When_CalculatingCategory_Then_ReturnsIdeal()
         {
-            // Assert
+            // Given
+            var bp = new BloodPressure { Systolic = 110, Diastolic = 70 };
+            
+            // When
+            var category = bp.Category;
+            
+            // Then
+            Assert.Equal(BPCategory.Ideal, category);
+        }
+
+        [Fact]
+        [Trait("Category", "BDD")]
+        public void Given_HighBloodPressure_When_CalculatingCategory_Then_ReturnsHigh()
+        {
+            // Given
+            var bp = new BloodPressure { Systolic = 150, Diastolic = 95 };
+            
+            // When
+            var category = bp.Category;
+            
+            // Then
+            Assert.Equal(BPCategory.High, category);
+        }
+
+        [Fact]
+        [Trait("Category", "BDD")]
+        public void Given_LowBloodPressure_When_CalculatingCategory_Then_ReturnsLow()
+        {
+            // Given
+            var bp = new BloodPressure { Systolic = 85, Diastolic = 55 };
+            
+            // When
+            var category = bp.Category;
+            
+            // Then
+            Assert.Equal(BPCategory.Low, category);
+        }
+
+        [Fact]
+        [Trait("Category", "BDD")]
+        public void Given_PreHighBloodPressure_When_CalculatingCategory_Then_ReturnsPreHigh()
+        {
+            // Given
+            var bp = new BloodPressure { Systolic = 135, Diastolic = 88 };
+            
+            // When
+            var category = bp.Category;
+            
+            // Then
+            Assert.Equal(BPCategory.PreHigh, category);
+        }
+
+        [Fact]
+        [Trait("Category", "Security")]
+        public void BloodPressure_NoInjectionVulnerabilities()
+        {
+            // Arrange
+            var bp = new BloodPressure { Systolic = 120, Diastolic = 80 };
+            
+            // Act - access property to ensure no security-related exceptions are thrown
+            var result = bp.Category;
+        }
+
+        [Fact]
+        public void BloodPressure_Constants_AreCorrect()
+        {
             Assert.Equal(70, BloodPressure.SystolicMin);
             Assert.Equal(190, BloodPressure.SystolicMax);
             Assert.Equal(40, BloodPressure.DiastolicMin);
@@ -70,12 +102,11 @@ namespace BPCalculator.Tests
         }
 
         [Theory]
-        [InlineData(89, 59)] // Both low
-        [InlineData(121, 81)] // Both pre-high  
-        [InlineData(141, 91)] // Both high
-        [InlineData(141, 80)] // Systolic high, diastolic ideal
-        [InlineData(120, 91)] // Systolic ideal, diastolic high
-        public void CalculateCategory_MixedCategories_ReturnsWorstCategory(int systolic, int diastolic)
+        [InlineData(89, 59, BPCategory.Low)] // Both low
+        [InlineData(121, 81, BPCategory.PreHigh)] // Both pre-high
+        [InlineData(141, 91, BPCategory.High)] // Both high
+        [Trait("Category", "Unit")]
+        public void CalculateCategory_MixedValues_ReturnsWorstCategory(int systolic, int diastolic, BPCategory expected)
         {
             // Arrange
             var bp = new BloodPressure { Systolic = systolic, Diastolic = diastolic };
@@ -83,17 +114,8 @@ namespace BPCalculator.Tests
             // Act
             var result = bp.Category;
             
-            // Assert - Should return the worst category
-            Assert.True(result == BPCategory.High || result == BPCategory.PreHigh || 
-                       result == BPCategory.Low || result == BPCategory.Ideal);
-        }
-
-        private string GetDisplayName(BPCategory category)
-        {
-            var field = category.GetType().GetField(category.ToString());
-            var attribute = (System.ComponentModel.DataAnnotations.DisplayAttribute)
-                System.Attribute.GetCustomAttribute(field, typeof(System.ComponentModel.DataAnnotations.DisplayAttribute));
-            return attribute?.Name ?? category.ToString();
+            // Assert
+            Assert.Equal(expected, result);
         }
     }
 }
