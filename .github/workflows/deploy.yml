@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ master, develop ]
+    branches: [ master, staging, develop ]
   pull_request:
-    branches: [ master ]
+    branches: [ staging ]
 
 env:
   DOTNET_VERSION: '9.0.x'
