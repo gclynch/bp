@@ -61,5 +61,7 @@ namespace BPCalculator
             // Order of severity: Ideal < Low < PreHigh < High
             return (BPCategory)Math.Max((int)systolicCat, (int)diastolicCat);
         }
+        
     }
+    
 }
