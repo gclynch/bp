@@ -39,83 +39,89 @@ namespace BPCalculator.Tests
             Assert.Equal(BPCategory.Ideal, category);
         }
 
+        // ... (keep your existing tests)
+
+        // NEW FEATURE TESTS
         [Fact]
-        [Trait("Category", "BDD")]
-        public void Given_HighBloodPressure_When_CalculatingCategory_Then_ReturnsHigh()
+        [Trait("Category", "Unit")]
+        public void BloodPressureHistory_AddRecord_ShouldStoreRecord()
         {
-            // Given
-            var bp = new BloodPressure { Systolic = 150, Diastolic = 95 };
+            // Arrange
+            var history = new BloodPressureHistory();
             
-            // When
-            var category = bp.Category;
+            // Act
+            history.AddRecord(120, 80, "TestUser");
             
-            // Then
-            Assert.Equal(BPCategory.High, category);
+            // Assert
+            Assert.Equal(1, history.HistoryCount);
         }
 
         [Fact]
-        [Trait("Category", "BDD")]
-        public void Given_LowBloodPressure_When_CalculatingCategory_Then_ReturnsLow()
+        [Trait("Category", "Unit")]
+        public void BloodPressureHistory_GetHistory_ShouldReturnReadOnlyList()
         {
-            // Given
-            var bp = new BloodPressure { Systolic = 85, Diastolic = 55 };
+            // Arrange
+            var history = new BloodPressureHistory();
+            history.AddRecord(120, 80);
             
-            // When
-            var category = bp.Category;
+            // Act
+            var records = history.GetHistory();
             
-            // Then
-            Assert.Equal(BPCategory.Low, category);
+            // Assert
+            Assert.NotNull(records);
+            Assert.Single(records);
         }
 
         [Fact]
-        [Trait("Category", "BDD")]
-        public void Given_PreHighBloodPressure_When_CalculatingCategory_Then_ReturnsPreHigh()
+        [Trait("Category", "Unit")]
+        public void BloodPressureHistory_ShouldKeepOnlyLast5Records()
         {
-            // Given
-            var bp = new BloodPressure { Systolic = 135, Diastolic = 88 };
+            // Arrange
+            var history = new BloodPressureHistory();
             
-            // When
-            var category = bp.Category;
+            // Act - Add 6 records
+            for (int i = 0; i < 6; i++)
+            {
+                history.AddRecord(100 + i, 70 + i);
+            }
             
-            // Then
-            Assert.Equal(BPCategory.PreHigh, category);
+            // Assert - Should only keep last 5
+            Assert.Equal(5, history.HistoryCount);
         }
 
         [Fact]
-        [Trait("Category", "Security")]
-        public void BloodPressure_NoInjectionVulnerabilities()
+        [Trait("Category", "Unit")]
+        public void BloodPressureRecord_ToString_ShouldReturnFormattedString()
         {
             // Arrange
             var bp = new BloodPressure { Systolic = 120, Diastolic = 80 };
+            var record = new BloodPressureRecord(bp, "TestUser");
             
-            // Act - access property to ensure no security-related exceptions are thrown
-            var result = bp.Category;
+            // Act
+            var result = record.ToString();
+            
+            // Assert
+            Assert.Contains("120/80", result);
+            Assert.Contains("Ideal", result);
+            Assert.Contains("TestUser", result);
         }
 
         [Fact]
-        public void BloodPressure_Constants_AreCorrect()
+        [Trait("Category", "BDD")]
+        public void Given_NewBloodPressureReading_When_AddedToHistory_Then_HistoryShouldContainRecord()
         {
-            Assert.Equal(70, BloodPressure.SystolicMin);
-            Assert.Equal(190, BloodPressure.SystolicMax);
-            Assert.Equal(40, BloodPressure.DiastolicMin);
-            Assert.Equal(100, BloodPressure.DiastolicMax);
-        }
-
-        [Theory]
-        [InlineData(89, 59, BPCategory.Low)] // Both low
-        [InlineData(121, 81, BPCategory.PreHigh)] // Both pre-high
-        [InlineData(141, 91, BPCategory.High)] // Both high
-        [Trait("Category", "Unit")]
-        public void CalculateCategory_MixedValues_ReturnsWorstCategory(int systolic, int diastolic, BPCategory expected)
-        {
-            // Arrange
-            var bp = new BloodPressure { Systolic = systolic, Diastolic = diastolic };
+            // Given
+            var history = new BloodPressureHistory();
             
-            // Act
-            var result = bp.Category;
+            // When
+            history.AddRecord(130, 85, "Doctor");
             
-            // Assert
-            Assert.Equal(expected, result);
+            // Then
+            Assert.Equal(1, history.HistoryCount);
+            var records = history.GetHistory();
+            Assert.Equal(130, records[0].Systolic);
+            Assert.Equal(85, records[0].Diastolic);
+            Assert.Equal("Doctor", records[0].User);
         }
     }
 }

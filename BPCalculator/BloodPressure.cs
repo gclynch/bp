@@ -1,6 +1,8 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace BPCalculator
 {
@@ -61,7 +63,43 @@ namespace BPCalculator
             // Order of severity: Ideal < Low < PreHigh < High
             return (BPCategory)Math.Max((int)systolicCat, (int)diastolicCat);
         }
-        
     }
-    
+
+    // NEW FEATURE: Blood Pressure History (under 30 lines)
+    public class BloodPressureHistory
+    {
+        private readonly List<BloodPressureRecord> _records = new();
+        
+        public void AddRecord(int systolic, int diastolic, string user = "User")
+        {
+            var bp = new BloodPressure { Systolic = systolic, Diastolic = diastolic };
+            _records.Add(new BloodPressureRecord(bp, user));
+            if (_records.Count > 5) _records.RemoveAt(0); // Keep only last 5
+        }
+        
+        public IReadOnlyList<BloodPressureRecord> GetHistory() => _records.AsReadOnly();
+        public void ClearHistory() => _records.Clear();
+        public int HistoryCount => _records.Count;
+    }
+
+    public class BloodPressureRecord
+    {
+        public int Systolic { get; }
+        public int Diastolic { get; }
+        public BPCategory Category { get; }
+        public DateTime Timestamp { get; }
+        public string User { get; }
+
+        public BloodPressureRecord(BloodPressure bp, string user)
+        {
+            Systolic = bp.Systolic;
+            Diastolic = bp.Diastolic;
+            Category = bp.Category;
+            Timestamp = DateTime.Now;
+            User = user;
+        }
+        
+        public override string ToString() => 
+            $"{Timestamp:HH:mm} - {Systolic}/{Diastolic} ({Category}) - {User}";
+    }
 }
