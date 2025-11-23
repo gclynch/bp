@@ -3,38 +3,117 @@
 
 @{
     ViewData["Title"] = "BP Category Calculator";
-}
 
+    string resultClass = "";
+    // default BMI result style (neutral)
+    string bmiResultClass = "alert alert-secondary";
+
+    // BP result colour
+    if (ViewData.ModelState.IsValid && Model.BP != null)
+    {
+        switch (Model.BP.Category)
+        {
+            case BPCategory.Low:
+                resultClass = "alert alert-primary";   // blue
+                break;
+            case BPCategory.Ideal:
+                resultClass = "alert alert-success";   // green
+                break;
+            case BPCategory.PreHigh:
+                resultClass = "alert alert-warning";   // orange
+                break;
+            case BPCategory.High:
+                resultClass = "alert alert-danger";    // red
+                break;
+            default:
+                resultClass = "alert alert-secondary";
+                break;
+        }
+    }
+
+    // BMI result colour
+    if (Model.BMI.HasValue)
+    {
+        bmiResultClass = Model.BMICategory == "Normal"
+            ? "alert alert-success"
+            : "alert alert-warning";
+    }
+}
 
 <h4>BP Category Calculator</h4>
 <hr />
+
 <div class="row">
     <div class="col-md-4">
-        <form method="post" id="form1">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <div class="form-group">
-                <label asp-for="BP.Systolic" class="control-label"></label>
-                <input asp-for="BP.Systolic" class="form-control"/>
-                <span asp-validation-for="BP.Systolic" class="text-danger"></span>
-            </div>
-            <div class="form-group">
-                <label asp-for="BP.Diastolic" class="control-label"></label>
-                <input asp-for="BP.Diastolic" class="form-control" />
-                <span asp-validation-for="BP.Diastolic" class="text-danger"></span>
-            </div>
-            <div class="form-group">
-                <input type="submit" value="Submit" class="btn btn-default" />
-            </div>
-            @if (ViewData.ModelState.IsValid)
-            {
-                <div class="form-group">
-                    @Html.DisplayFor(model => model.BP.Category, new { htmlAttributes = new { @class = "form-control" } })
+        <div class="card border-success mb-3">
+            <div class="card-body">
+
+                <form method="post" id="form1">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                    <div class="form-group">
+                        <label asp-for="BP.Systolic" class="control-label"></label>
+                        <input asp-for="BP.Systolic" class="form-control" />
+                        <span asp-validation-for="BP.Systolic" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label asp-for="BP.Diastolic" class="control-label"></label>
+                        <input asp-for="BP.Diastolic" class="form-control" />
+                        <span asp-validation-for="BP.Diastolic" class="text-danger"></span>
+                    </div>
+
+                    <!-- BMI inputs under BP section -->
+                    <h5 class="mt-4">BMI Calculator</h5>
+
+                    <div class="form-group">
+                        <label asp-for="HeightCm" class="control-label">Height (cm)</label>
+                        <input asp-for="HeightCm" class="form-control" />
+                        <span asp-validation-for="HeightCm" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label asp-for="WeightKg" class="control-label">Weight (kg)</label>
+                        <input asp-for="WeightKg" class="form-control" />
+                        <span asp-validation-for="WeightKg" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <input type="submit" value="Submit" class="btn btn-success" />
+                    </div>
+                </form>
+
+                @* BP result *@
+                @if (ViewData.ModelState.IsValid && Model.BP != null)
+                {
+                    <div class="form-group mt-3">
+                        <label>BP Result:</label>
+                        <div id="bpResult" class="@resultClass">
+                            @Model.BP.Category
+                        </div>
+                    </div>
+                }
+
+                @* BMI result (always rendered) *@
+                <div class="form-group mt-3">
+                    <label>BMI Result:</label>
+                    <div id="bmiResult" class="@bmiResultClass">
+                        @if (Model.BMI.HasValue)
+                        {
+                            @($"{Model.BMI} ({Model.BMICategory})")
+                        }
+                        else
+                        {
+                            <span>No BMI calculated yet.</span>
+                        }
+                    </div>
                 </div>
-            }
-        </form>
+
+            </div>
+        </div>
     </div>
 </div>
 
 @section Scripts {
-    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <partial name="_ValidationScriptsPartial" />
 }
