@@ -29,11 +29,28 @@ namespace BPCalculator
         // calculate BP category
         public BPCategory Category
         {
-            get
+         get
             {
-                // implement as part of project
-                //throw new NotImplementedException("not implemented yet");
-                return new BPCategory();                       // replace this
+                // LOW BP
+                if (Systolic < 90 || Diastolic < 60)
+                    return BPCategory.Low;
+
+                // IDEAL BP
+                if (Systolic >= 90 && Systolic < 120 &&
+                    Diastolic >= 60 && Diastolic < 80)
+                    return BPCategory.Ideal;
+
+                // PRE-HIGH BP
+                if ((Systolic >= 120 && Systolic < 140) ||
+                    (Diastolic >= 80 && Diastolic < 90))
+                    return BPCategory.PreHigh;
+
+                // HIGH BP
+                if (Systolic >= 140 || Diastolic >= 90)
+                    return BPCategory.High;
+
+                // fallback — should never reach here
+                return BPCategory.High;
             }
         }
     }

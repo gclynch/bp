@@ -1,0 +1,61 @@
+name: CI Pipeline with SonarCloud
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build-test-analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Required for SonarCloud
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install SonarScanner
+      uses: SonarSource/sonarcloud-github-action@v2
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+
+    - name: Run Tests with Coverage
+      run: dotnet test --no-build --configuration Release --collect "XPlat Code Coverage"
+
+    - name: Locate coverage file
+      id: coverage
+      run: echo "##[set-output name=path;]$(find . -type f -name 'coverage.cobertura.xml')"
+
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarcloud-github-action@v2
+      with:
+        args: >
+          -Dsonar.projectKey=chan27052705_bp
+          -Dsonar.organization=chan27052705-1
+          -Dsonar.cs.opencover.reportsPaths=${{ steps.coverage.outputs.path }}
+          -Dsonar.coverage.exclusions=**/wwwroot/**
+
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: Upload Coverage Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: ${{ steps.coverage.outputs.path }}
+
+    - name: Vulnerability Scan
+      run: dotnet list package --vulnerable || true
