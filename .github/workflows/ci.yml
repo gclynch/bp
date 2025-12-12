@@ -1,0 +1,132 @@
+name: CI - Build, Tests, Coverage, SonarCloud
+
+# Run pipeline on every push or pull request to master
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  build-test-sonar:
+    runs-on: ubuntu-latest
+    steps:
+
+      # Get source code from GitHub
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Needed for Sonar history analysis
+      
+      # Install .NET SDK
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Install global tools for Sonar and Coverage
+
+      - name: Install Tools
+        run: |
+          dotnet tool install --global dotnet-sonarscanner
+          dotnet tool install --global coverlet.console
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      # Restore NuGet packages
+
+      - name: Restore
+        run: dotnet restore
+
+      # Start SonarCloud analysis session
+
+      - name: SonarCloud Begin
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+          SONAR_ORG: ${{ secrets.SONAR_ORG }}
+        run: |
+          dotnet-sonarscanner begin \
+            /k:"${SONAR_PROJECT_KEY}" \
+            /o:"${SONAR_ORG}" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.token="${SONAR_TOKEN}" \
+            /d:sonar.cs.opencover.reportsPaths="TestReports/coverage.opencover.xml"
+
+      # Install Trivy security scanner
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -y
+          sudo apt-get install trivy -y
+
+      # Run vulnerability scan (fails pipeline if high/critical issues found)
+
+      - name: Run Trivy Vulnerability Scan
+        run: trivy fs --severity HIGH,CRITICAL --exit-code 1 --no-progress .
+
+      # Build application in Release mode
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      
+      # Publish the application 
+
+      - name: Publish App
+        run: dotnet publish --configuration Release --output ./published-app
+        
+      # Run all Unit + BDD tests and save results
+
+      - name: Run Unit + BDD Tests
+        run: |
+          mkdir -p TestReports
+          dotnet test BPCalculator.Tests/BPCalculator.Tests.csproj \
+            --configuration Release \
+            --logger "trx;LogFileName=test_results.trx" \
+            --no-build \
+            --results-directory TestReports
+
+      # Generate test coverage report for SonarCloud
+
+      - name: Generate OpenCover Coverage
+        run: |
+          mkdir -p TestReports
+          coverlet \
+            BPCalculator.Tests/bin/Release/net9.0/BPCalculator.Tests.dll \
+            --target "dotnet" \
+            --targetargs "test BPCalculator.Tests/BPCalculator.Tests.csproj --no-build --configuration Release" \
+            --format opencover \
+            --output TestReports/coverage.opencover.xml
+
+      # Display TestReports folder structure
+
+      - name: List TestReports
+        run: ls -R TestReports
+
+      # End SonarCloud analysis and upload results
+
+      - name: SonarCloud End
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet-sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+
+      # Upload test results and coverage as pipeline artifacts
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestReports/
+
+      # Upload  results and publish for CD
+
+      - name: Upload Published Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-app
+          path: published-app/
