@@ -95,6 +95,8 @@ jobs:
       k6-p95: ${{ steps.k6-results.outputs.p95 }}
       k6-failed: ${{ steps.k6-results.outputs.failed }}
       k6-report: ${{ steps.pages.outputs.url }}
+      # the site the ZAP scan targets
+      stage-url: ${{ steps.deploy.outputs.webapp-url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -184,6 +186,75 @@ jobs:
         run: |
           {
             echo "k6 report: ${{ steps.pages.outputs.url }}/$GITHUB_SHA/ (latest run: ${{ steps.pages.outputs.url }}/latest/)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # OWASP ZAP baseline scan of stage; report only, so deploy-prod does not wait for it
+  zap-scan:
+    needs: deploy-stage
+    runs-on: ubuntu-latest
+    # write access only to publish the ZAP report to the gh-pages branch
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # passive scan only, no attacks. -I: warnings do not fail this step.
+      # shell: bash turns on pipefail, so a ZAP crash still fails the step despite the tee.
+      # ZAP's version is pinned so scans can be compared with each other.
+      - name: ZAP baseline scan
+        shell: bash
+        env:
+          STAGE_URL: ${{ needs.deploy-stage.outputs.stage-url }}
+        run: |
+          if [ -z "$STAGE_URL" ]; then
+            echo "::error::No stage URL to scan"
+            exit 1
+          fi
+          mkdir -p zap
+          # the ZAP container runs as a different user and writes its reports here
+          chmod 777 zap
+          docker run --rm -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.16.1 \
+            zap-baseline.py -t "$STAGE_URL" -I \
+            -r zap-report.html -J zap-report.json -w zap-report.md \
+            | tee zap/zap-output.txt
+
+      # ZAP's reports only list problems, so this adds the passed checks from its output
+      - name: Build ZAP report page
+        run: |
+          python3 .github/scripts/zap-report.py \
+            zap/zap-output.txt zap/zap-report.json zap/index.html >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ZAP results
+        if: always() && hashFiles('zap/zap-output.txt') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap/
+
+      # GitHub Pages: zap/latest/ is the newest report, zap/<commit>/ keeps each run's report
+      - name: Prepare ZAP report for GitHub Pages
+        id: pages
+        if: always() && hashFiles('zap/index.html') != ''
+        run: |
+          mkdir -p "pages/zap/$GITHUB_SHA" pages/zap/latest
+          cp zap/index.html "pages/zap/$GITHUB_SHA/index.html"
+          cp zap/index.html pages/zap/latest/index.html
+          echo "url=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/zap" >> "$GITHUB_OUTPUT"
+
+      - name: Publish ZAP report to GitHub Pages
+        if: always() && steps.pages.outcome == 'success'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pages
+          keep_files: true
+          commit_message: "ZAP report for ${{ github.sha }}"
+
+      - name: Link ZAP report in run summary
+        if: always() && steps.pages.outcome == 'success'
+        run: |
+          {
+            echo "ZAP report: ${{ steps.pages.outputs.url }}/$GITHUB_SHA/ (latest run: ${{ steps.pages.outputs.url }}/latest/)"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # tells Slack that stage passed and production is waiting for approval
