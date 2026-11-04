@@ -37,11 +37,11 @@ Modules use flat imports (`from config import ...`), so the app directory must b
 - `bloodpressure.py` — pure domain model: `BPCategory` enum (value = display text) and `BloodPressure` dataclass with range constants and the `category` property (thresholds checked High → Pre-High → Ideal → Low; the higher reading wins).
 - `forms.py` — `BloodPressureForm` (Flask-WTF). Range limits come from the `BloodPressure` constants. The cross-field rule "Systolic must be greater than Diastolic" goes into `form_errors` (rendered in the validation summary), not a field error.
 - `pages.py` — blueprint with `/`, `/Privacy`, `/Error`, plus `render_error_page()` (no-cache headers), which is shared with the 500 handler.
-- `templates/` (Jinja2, extend `base.html`) and `static/` (byte-identical copy of the .NET `wwwroot/`, plus the new `css/version.css`).
+- `templates/` (Jinja2, extend `base.html`) and `static/` (copy of the .NET `wwwroot/`, plus the new `css/version.css` and upgraded jQuery and jQuery Validation, see F9 in `MIGRATION.md`).
 
 ### Compatibility constraints to preserve
 
-The port deliberately keeps the .NET app's external surface so existing UI tests and the unmodified client-side scripts keep working:
+The port deliberately keeps the .NET app's external surface so existing UI tests and the client-side scripts keep working:
 
 - Form field names/ids stay `BP.Systolic` / `BP_Systolic` and `BP.Diastolic` / `BP_Diastolic`.
 - `forms.py` emits the same `data-val-*` attributes that Razor tag helpers produced; jQuery Unobtrusive Validation depends on them.

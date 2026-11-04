@@ -149,7 +149,7 @@ def test_csp_blocks_framing_and_other_sites():
 
 
 def test_pages_are_not_cached(client):
-    assert client.get("/").headers["Cache-Control"] == "no-store"
+    assert client.get("/").headers["Cache-Control"] == "no-cache, no-store, must-revalidate"
 
 
 def test_static_files_stay_cacheable(client):
