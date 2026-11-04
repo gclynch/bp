@@ -40,7 +40,8 @@ The original .NET project is **unchanged** and still in `../BPCalculator`, so bo
 | F5 | HTML5 attributes on inputs | `type="number"` + `data-val-*` | Same, **plus** `min`, `max`, `required` | WTForms adds them automatically. jQuery Validation sets `novalidate` on the form, so users still see the same messages. |
 | F6 | Anti-forgery field name | `__RequestVerificationToken` | `csrf_token` | Framework naming. A POST without a valid token still gets **HTTP 400** in both. |
 | F7 | Version header and label | None | Every response has `X-App-Version` (commit SHA from the `APP_VERSION` env var, read into config at `config.py:16-17`, `dev` locally) (`app.py:54-59`). The calculator page also shows `Version <short SHA>` in its bottom-right corner, with the full SHA on hover (`app.py:61-64`, `index.html:36`) | The deploy pipeline uses the header to confirm which version is live before marking it stable or after a rollback. The label lets a person check by eye that the latest change is deployed. |
-| F8 | Security headers and cookie flags | None | Every response has CSP, `X-Frame-Options`, `X-Content-Type-Options`, HSTS, `Referrer-Policy`, `Permissions-Policy` and the `Cross-Origin-*` policies (`config.py:21-37`, `app.py:66-73`). Pages also get `Cache-Control: no-store`; static files stay cacheable. The session cookie is `Secure` and `SameSite=Lax`, except in Development and Testing, which use plain HTTP (`config.py:18-20`). The version label's inline style moved to `static/css/version.css`, because the CSP blocks inline styles | Fixes the warnings from the OWASP ZAP scan of stage. Do not use `Referrer-Policy: no-referrer`: Flask-WTF can require a `Referer` on HTTPS POSTs. |
+| F8 | Security headers and cookie flags | None | Every response has CSP, `X-Frame-Options`, `X-Content-Type-Options`, HSTS, `Referrer-Policy`, `Permissions-Policy` and the `Cross-Origin-*` policies (`config.py:21-37`, `app.py:66-73`). Pages also get `Cache-Control: no-cache, no-store, must-revalidate`; static files stay cacheable. The session cookie is `Secure` and `SameSite=Lax`, except in Development and Testing, which use plain HTTP (`config.py:18-20`). The version label's inline style moved to `static/css/version.css`, because the CSP blocks inline styles | Fixes the warnings from the OWASP ZAP scan of stage. Do not use `Referrer-Policy: no-referrer`: Flask-WTF can require a `Referer` on HTTPS POSTs. |
+| F9 | Client-side libraries | jQuery 3.3.1, jQuery Validation 1.17.0 | jQuery 3.7.1, jQuery Validation 1.22.1 | OWASP ZAP flagged the old versions as vulnerable (High). jQuery stays on 3.x because Bootstrap 4.3.1 and jQuery Unobtrusive Validation need it. The .NET app keeps the old versions. |
 
 Everything else (URLs, form field names/ids, validation rules and messages, page markup, CSS, JS) was kept the same on purpose. Existing UI tests that use `id="BP_Systolic"` or `name="BP.Systolic"` will still work.
 
@@ -68,7 +69,7 @@ Everything else (URLs, form field names/ids, validation rules and messages, page
 | `Pages/Error.cshtml` | `templates/error.html` | Rewritten |
 | `Pages/Shared/_Layout.cshtml` | `templates/base.html` | Rewritten |
 | `Pages/Shared/_ValidationScriptsPartial.cshtml` | `templates/_validation_scripts.html` | Rewritten |
-| `wwwroot/**` (css, js, favicon, lib) | `static/**` | **Copied unchanged** (byte-identical); `static/css/version.css` is new (F8) |
+| `wwwroot/**` (css, js, favicon, lib) | `static/**` | **Copied unchanged** (byte-identical), except the upgraded jQuery and jQuery Validation (F9); `static/css/version.css` is new (F8) |
 | — | `tests/conftest.py`, `tests/test_bloodpressure.py`, `tests/test_app.py` | **New** |
 | — | `README.md`, `MIGRATION.md`, `.gitignore` | **New** |
 
@@ -203,7 +204,7 @@ For production, `waitress-serve --call app:create_app` calls the same factory, j
 | (`_Layout.cshtml:46` `asp-append-version="true"`) | Tag helper appends `?v=<hash>` | 44-52 | `static_v()` context processor | Same cache-busting behaviour |
 | — | — | 54-59 | `after_request` adds `X-App-Version` | **New** (F7) |
 | — | — | 61-64 | `context_processor` passes `app_version` to templates | **New** (F7) |
-| — | — | 66-73 | `after_request` adds the security headers and `Cache-Control: no-store` on pages | **New** (F8) |
+| — | — | 66-73 | `after_request` adds the security headers and `Cache-Control: no-cache, no-store, must-revalidate` on pages | **New** (F8) |
 
 ```csharp
 // OLD  Startup.cs:29-50
@@ -440,7 +441,7 @@ The markup is identical line for line, apart from the new `version.css` link at 
 
 ### 3.13 `wwwroot/` → `static/`
 
-Copied **unchanged** (`css/site.css`, `js/site.js`, `favicon.ico`, `lib/bootstrap`, `lib/jquery`, `lib/jquery-validation`, `lib/jquery-validation-unobtrusive`, including their licence files). Only the folder name changed, because Flask serves `static/` at `/static/...`.
+`lib/jquery` and `lib/jquery-validation` were later upgraded (F9), so they no longer match `wwwroot/`. Otherwise copied **unchanged** (`css/site.css`, `js/site.js`, `favicon.ico`, `lib/bootstrap`, `lib/jquery`, `lib/jquery-validation`, `lib/jquery-validation-unobtrusive`, including their licence files). Only the folder name changed, because Flask serves `static/` at `/static/...`.
 
 | Old URL | New URL |
 |---|---|

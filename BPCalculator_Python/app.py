@@ -69,7 +69,7 @@ def create_app(env_name=None):
         response.headers.update(app.config["SECURITY_HEADERS"])
         # pages can show a reading, so keep them out of caches; static files stay cacheable
         if request.endpoint != "static":
-            response.headers.setdefault("Cache-Control", "no-store")
+            response.headers.setdefault("Cache-Control", "no-cache, no-store, must-revalidate")
         return response
 
     return app

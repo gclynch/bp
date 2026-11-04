@@ -5,7 +5,8 @@ ZAP's own reports only list the problems; the passed checks appear only in its
 console output. This merges the two.
 
 Usage: zap-report.py <console output> <ZAP JSON report> <output HTML>
-Prints a Markdown summary to stdout for the GitHub run summary.
+Prints a Markdown summary to stdout for the GitHub run summary, and writes the
+counts to GITHUB_OUTPUT for the Slack messages.
 """
 import html
 import json
@@ -178,6 +179,18 @@ def render_summary(problems, passed, totals):
     return "\n".join(lines)
 
 
+def write_outputs(problems, passed):
+    """Give later pipeline steps the counts: passed, high, medium, low, informational."""
+    path = os.environ.get("GITHUB_OUTPUT")
+    if not path:
+        return
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"passed={len(passed)}\n")
+        for risk, label in RISKS.items():
+            count = sum(1 for p in problems if p["risk"] == risk)
+            f.write(f"{label.lower()}={count}\n")
+
+
 def main():
     if len(sys.argv) != 4:
         sys.exit(__doc__)
@@ -190,6 +203,7 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(render_page(report, problems, passed, totals))
     print(render_summary(problems, passed, totals))
+    write_outputs(problems, passed)
 
 
 if __name__ == "__main__":
