@@ -37,7 +37,7 @@ Modules use flat imports (`from config import ...`), so the app directory must b
 - `bloodpressure.py` — pure domain model: `BPCategory` enum (value = display text) and `BloodPressure` dataclass with range constants and the `category` property (thresholds checked High → Pre-High → Ideal → Low; the higher reading wins).
 - `forms.py` — `BloodPressureForm` (Flask-WTF). Range limits come from the `BloodPressure` constants. The cross-field rule "Systolic must be greater than Diastolic" goes into `form_errors` (rendered in the validation summary), not a field error.
 - `pages.py` — blueprint with `/`, `/Privacy`, `/Error`, plus `render_error_page()` (no-cache headers), which is shared with the 500 handler.
-- `templates/` (Jinja2, extend `base.html`) and `static/` (byte-identical copy of the .NET `wwwroot/`).
+- `templates/` (Jinja2, extend `base.html`) and `static/` (byte-identical copy of the .NET `wwwroot/`, plus the new `css/version.css`).
 
 ### Compatibility constraints to preserve
 
@@ -48,5 +48,6 @@ The port deliberately keeps the .NET app's external surface so existing UI tests
 - Validation messages match ASP.NET's exactly (`Invalid Systolic Value`, `The Systolic field is required.`, etc.).
 - Routes are case-sensitive: `/Privacy` and `/Error` must stay capitalised.
 - A POST without a valid CSRF token returns 400 (outside the Testing config).
+- The Content Security Policy in `config.py` blocks inline styles and scripts, so templates must not use them. Keep `Referrer-Policy` from being `no-referrer`, because Flask-WTF can require a `Referer` on HTTPS POSTs.
 
 If the category thresholds change, update `bloodpressure.py` and the expected values in `tests/test_bloodpressure.py` together.

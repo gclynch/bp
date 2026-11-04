@@ -63,6 +63,15 @@ def create_app(env_name=None):
     def version_context():
         return {"app_version": app.config["APP_VERSION"]}
 
+    # browser security protections on every response (see MIGRATION.md F8)
+    @app.after_request
+    def add_security_headers(response):
+        response.headers.update(app.config["SECURITY_HEADERS"])
+        # pages can show a reading, so keep them out of caches; static files stay cacheable
+        if request.endpoint != "static":
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
     return app
 
 
