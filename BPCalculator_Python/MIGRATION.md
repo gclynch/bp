@@ -39,7 +39,8 @@ The original .NET project is **unchanged** and still in `../BPCalculator`, so bo
 | F4 | Unhandled errors | Not logged by the template | Logged with stack trace and request id (`app.py:37-38`) | Small improvement. `_logger` was injected in C# but never used. |
 | F5 | HTML5 attributes on inputs | `type="number"` + `data-val-*` | Same, **plus** `min`, `max`, `required` | WTForms adds them automatically. jQuery Validation sets `novalidate` on the form, so users still see the same messages. |
 | F6 | Anti-forgery field name | `__RequestVerificationToken` | `csrf_token` | Framework naming. A POST without a valid token still gets **HTTP 400** in both. |
-| F7 | Version header and label | None | Every response has `X-App-Version` (commit SHA from the `APP_VERSION` env var, read into config at `config.py:15-16`, `dev` locally) (`app.py:54-59`). The calculator page also shows `Version <short SHA>` in its bottom-right corner, with the full SHA on hover (`app.py:61-64`, `index.html:36`) | The deploy pipeline uses the header to confirm which version is live before marking it stable or after a rollback. The label lets a person check by eye that the latest change is deployed. |
+| F7 | Version header and label | None | Every response has `X-App-Version` (commit SHA from the `APP_VERSION` env var, read into config at `config.py:16-17`, `dev` locally) (`app.py:54-59`). The calculator page also shows `Version <short SHA>` in its bottom-right corner, with the full SHA on hover (`app.py:61-64`, `index.html:36`) | The deploy pipeline uses the header to confirm which version is live before marking it stable or after a rollback. The label lets a person check by eye that the latest change is deployed. |
+| F8 | Security headers and cookie flags | None | Every response has CSP, `X-Frame-Options`, `X-Content-Type-Options`, HSTS, `Referrer-Policy`, `Permissions-Policy` and the `Cross-Origin-*` policies (`config.py:21-37`, `app.py:66-73`). Pages also get `Cache-Control: no-store`; static files stay cacheable. The session cookie is `Secure` and `SameSite=Lax`, except in Development and Testing, which use plain HTTP (`config.py:18-20`). The version label's inline style moved to `static/css/version.css`, because the CSP blocks inline styles | Fixes the warnings from the OWASP ZAP scan of stage. Do not use `Referrer-Policy: no-referrer`: Flask-WTF can require a `Referer` on HTTPS POSTs. |
 
 Everything else (URLs, form field names/ids, validation rules and messages, page markup, CSS, JS) was kept the same on purpose. Existing UI tests that use `id="BP_Systolic"` or `name="BP.Systolic"` will still work.
 
@@ -56,7 +57,7 @@ Everything else (URLs, form field names/ids, validation rules and messages, page
 | `BloodPressure.cs` | `bloodpressure.py` (domain), `forms.py` (validation) | Rewritten + **split** |
 | `appsettings.json` | `config.py` → `Config` | Rewritten |
 | `appsettings.Development.json` | `config.py` → `DevelopmentConfig` | Rewritten |
-| `Properties/launchSettings.json` | `app.py:69-71`, `config.py:37-39` | Rewritten |
+| `Properties/launchSettings.json` | `app.py:78-80`, `config.py:60-62` | Rewritten |
 | `Pages/_ViewImports.cshtml` | — | Removed: Jinja2 needs no imports / tag-helper registration |
 | `Pages/_ViewStart.cshtml` | `{% extends "base.html" %}` at the top of each template | Replaced |
 | `Pages/Index.cshtml.cs` | `pages.py:10-20`, `forms.py:38-49` | Rewritten |
@@ -67,7 +68,7 @@ Everything else (URLs, form field names/ids, validation rules and messages, page
 | `Pages/Error.cshtml` | `templates/error.html` | Rewritten |
 | `Pages/Shared/_Layout.cshtml` | `templates/base.html` | Rewritten |
 | `Pages/Shared/_ValidationScriptsPartial.cshtml` | `templates/_validation_scripts.html` | Rewritten |
-| `wwwroot/**` (css, js, favicon, lib) | `static/**` | **Copied unchanged** (byte-identical) |
+| `wwwroot/**` (css, js, favicon, lib) | `static/**` | **Copied unchanged** (byte-identical); `static/css/version.css` is new (F8) |
 | — | `tests/conftest.py`, `tests/test_bloodpressure.py`, `tests/test_app.py` | **New** |
 | — | `README.md`, `MIGRATION.md`, `.gitignore` | **New** |
 
@@ -172,7 +173,7 @@ public static IHostBuilder CreateHostBuilder(string[] args) =>
         .ConfigureWebHostDefaults(webBuilder => { webBuilder.UseStartup<Startup>(); });
 ```
 ```python
-# NEW  app.py:18-20 and 69-71
+# NEW  app.py:18-20 and 78-80
 def create_app(env_name=None):
     app = Flask(__name__)
     app.config.from_object(get_config(env_name))
@@ -202,6 +203,7 @@ For production, `waitress-serve --call app:create_app` calls the same factory, j
 | (`_Layout.cshtml:46` `asp-append-version="true"`) | Tag helper appends `?v=<hash>` | 44-52 | `static_v()` context processor | Same cache-busting behaviour |
 | — | — | 54-59 | `after_request` adds `X-App-Version` | **New** (F7) |
 | — | — | 61-64 | `context_processor` passes `app_version` to templates | **New** (F7) |
+| — | — | 66-73 | `after_request` adds the security headers and `Cache-Control: no-store` on pages | **New** (F8) |
 
 ```csharp
 // OLD  Startup.cs:29-50
@@ -357,7 +359,7 @@ Rendered HTML (checked against the running server): `<input class="form-control"
 
 ### 3.6 `Pages/Shared/_Layout.cshtml` → `templates/base.html`
 
-The markup is identical line for line (same line numbers 1-48). Only Razor-specific syntax changed:
+The markup is identical line for line, apart from the new `version.css` link at line 9 (F8), so from there on the new file's line numbers are one higher than those below. Only Razor-specific syntax changed:
 
 | Line(s) (old = new) | Old | New |
 |---|---|---|
@@ -411,16 +413,17 @@ The markup is identical line for line (same line numbers 1-48). Only Razor-speci
 
 | Old file:line | Old setting | New file:line | New setting |
 |---|---|---|---|
-| `appsettings.json:4` | `"Default": "Information"` | `config.py:10` | `LOG_LEVEL = "INFO"` |
+| `appsettings.json:4` | `"Default": "Information"` | `config.py:11` | `LOG_LEVEL = "INFO"` |
 | `appsettings.json:5-6` | `"Microsoft": "Warning"`, `"Microsoft.Hosting.Lifetime": "Information"` | — | Not needed: framework-specific categories |
 | `appsettings.json:9` | `"AllowedHosts": "*"` | — | Flask accepts all hosts by default (same behaviour) |
-| `appsettings.Development.json:4` | `"Default": "Debug"` | `config.py:22` | `LOG_LEVEL = "DEBUG"` |
-| `launchSettings.json:22` | `"applicationUrl": "http://localhost:5000"` | `app.py:71` | `.run(host="localhost", port=5000)` |
-| `launchSettings.json:24` | `"ASPNETCORE_ENVIRONMENT": "Development"` | `app.py:71`, `config.py:37-39` | `APP_ENV` (default `Development` for `python app.py`, `Production` otherwise) |
+| `appsettings.Development.json:4` | `"Default": "Debug"` | `config.py:43` | `LOG_LEVEL = "DEBUG"` |
+| `launchSettings.json:22` | `"applicationUrl": "http://localhost:5000"` | `app.py:80` | `.run(host="localhost", port=5000)` |
+| `launchSettings.json:24` | `"ASPNETCORE_ENVIRONMENT": "Development"` | `app.py:80`, `config.py:60-62` | `APP_ENV` (default `Development` for `python app.py`, `Production` otherwise) |
 | `launchSettings.json:2-16` | IIS Express profile (port 53135) | — | **Removed**: IIS Express is Windows/.NET only |
-| (implicit Data Protection keys) | auto-generated anti-forgery key | `config.py:11-14` | `SECRET_KEY` from env, or random per process |
-| — | — | `config.py:15-16` | **New** `APP_VERSION` from env, `dev` if not set (F7) |
-| — | — | `config.py:25-27` | **New** `TestingConfig` (CSRF off for tests) |
+| (implicit Data Protection keys) | auto-generated anti-forgery key | `config.py:12-15` | `SECRET_KEY` from env, or random per process |
+| — | — | `config.py:16-17` | **New** `APP_VERSION` from env, `dev` if not set (F7) |
+| — | — | `config.py:18-37` | **New** session cookie flags and `SECURITY_HEADERS` (F8) |
+| — | — | `config.py:47-50` | **New** `TestingConfig` (CSRF off for tests) |
 
 ### 3.12 `BPCalculator.csproj` + `BPCalculator.sln` → `requirements*.txt`
 

@@ -130,3 +130,45 @@ def test_lowercase_error_url_is_not_found(client):
 def test_unknown_url_is_not_found(client):
     response = client.get("/does-not-exist")
     assert response.status_code == 404
+
+
+# --- security headers (MIGRATION.md F8) ---
+
+@pytest.mark.parametrize("path", ["/", "/Privacy", "/Error", "/static/css/site.css", "/missing"])
+def test_security_headers_on_every_response(client, path):
+    headers = client.get(path).headers
+    for name, value in client.application.config["SECURITY_HEADERS"].items():
+        assert headers[name] == value
+
+
+def test_csp_blocks_framing_and_other_sites():
+    from config import Config
+    csp = Config.SECURITY_HEADERS["Content-Security-Policy"]
+    assert "default-src 'self'" in csp
+    assert "frame-ancestors 'none'" in csp
+
+
+def test_pages_are_not_cached(client):
+    assert client.get("/").headers["Cache-Control"] == "no-store"
+
+
+def test_static_files_stay_cacheable(client):
+    assert "no-store" not in client.get("/static/css/site.css").headers.get("Cache-Control", "")
+
+
+def test_error_page_keeps_its_own_cache_header(client):
+    assert client.get("/Error").headers["Cache-Control"] == "no-store,no-cache"
+
+
+@pytest.mark.parametrize("path", ["/", "/Privacy", "/Error"])
+def test_pages_have_no_inline_styles_or_scripts(client, path):
+    # the Content Security Policy would block these
+    html = client.get(path).get_data(as_text=True)
+    assert " style=" not in html and "<style" not in html
+    assert " onclick=" not in html and "<script>" not in html
+
+
+def test_production_session_cookie_is_secure():
+    client = create_app("Production").test_client()
+    cookie = client.get("/").headers["Set-Cookie"]
+    assert "Secure" in cookie and "HttpOnly" in cookie and "SameSite=Lax" in cookie
