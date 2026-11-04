@@ -195,6 +195,13 @@ jobs:
     # write access only to publish the ZAP report to the gh-pages branch
     permissions:
       contents: write
+    # ZAP results and report link for the Slack messages
+    outputs:
+      zap-passed: ${{ steps.report.outputs.passed }}
+      zap-high: ${{ steps.report.outputs.high }}
+      zap-medium: ${{ steps.report.outputs.medium }}
+      zap-low: ${{ steps.report.outputs.low }}
+      zap-report: ${{ steps.pages.outputs.url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -213,13 +220,14 @@ jobs:
           mkdir -p zap
           # the ZAP container runs as a different user and writes its reports here
           chmod 777 zap
-          docker run --rm -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.16.1 \
+          docker run --rm -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.17.0 \
             zap-baseline.py -t "$STAGE_URL" -I \
             -r zap-report.html -J zap-report.json -w zap-report.md \
             | tee zap/zap-output.txt
 
       # ZAP's reports only list problems, so this adds the passed checks from its output
       - name: Build ZAP report page
+        id: report
         run: |
           python3 .github/scripts/zap-report.py \
             zap/zap-output.txt zap/zap-report.json zap/index.html >> "$GITHUB_STEP_SUMMARY"
@@ -257,12 +265,30 @@ jobs:
             echo "ZAP report: ${{ steps.pages.outputs.url }}/$GITHUB_SHA/ (latest run: ${{ steps.pages.outputs.url }}/latest/)"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # tells Slack that stage passed and production is waiting for approval
+  # tells Slack that stage passed, ZAP has run and production is waiting for approval
   notify-approval:
-    needs: deploy-stage
+    needs: [deploy-stage, zap-scan]
+    # waits for the ZAP report, so it can be read before approving;
+    # ZAP is report only, so a failed scan does not stop this
+    if: ${{ !cancelled() && needs.deploy-stage.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Add report links to run summary
+        env:
+          K6_REPORT: ${{ needs.deploy-stage.outputs.k6-report }}
+          ZAP_REPORT: ${{ needs.zap-scan.outputs.zap-report }}
+        run: |
+          {
+            echo "## Test reports"
+            if [ -n "$K6_REPORT" ]; then
+              echo "- [k6 load test report]($K6_REPORT/$GITHUB_SHA/)"
+            fi
+            if [ -n "$ZAP_REPORT" ]; then
+              echo "- [OWASP ZAP security report]($ZAP_REPORT/$GITHUB_SHA/)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Slack - waiting for approval
         env:
@@ -270,9 +296,19 @@ jobs:
           K6_P95: ${{ needs.deploy-stage.outputs.k6-p95 }}
           K6_FAILED: ${{ needs.deploy-stage.outputs.k6-failed }}
           K6_REPORT: ${{ needs.deploy-stage.outputs.k6-report }}
+          ZAP_PASSED: ${{ needs.zap-scan.outputs.zap-passed }}
+          ZAP_HIGH: ${{ needs.zap-scan.outputs.zap-high }}
+          ZAP_MEDIUM: ${{ needs.zap-scan.outputs.zap-medium }}
+          ZAP_LOW: ${{ needs.zap-scan.outputs.zap-low }}
+          ZAP_REPORT: ${{ needs.zap-scan.outputs.zap-report }}
         run: |
           subject=$(git log -1 --format=%s | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ -n "$ZAP_PASSED" ]; then
+            zap_line="🔒 ZAP - $ZAP_PASSED passed, $ZAP_HIGH High, $ZAP_MEDIUM Medium, $ZAP_LOW Low"
+          else
+            zap_line="⚠️ ZAP - scan did not finish"
+          fi
           bash .github/scripts/slack-notify.sh \
             "⏳ BP Calculator ${GITHUB_SHA::7} is waiting for approval to go to production" \
             "*Version:* \`${GITHUB_SHA::7}\` - $subject
@@ -282,13 +318,18 @@ jobs:
           ✅ Test - health check passed
           ✅ Stage - health check passed
           ✅ k6 - p95 ${K6_P95} ms (limit 1000 ms), failed requests ${K6_FAILED}% (limit 1%)
+          $zap_line
           ⏳ Production - waiting for approval" \
             "Review and approve=$run_url" \
-            "k6 report=${K6_REPORT:+$K6_REPORT/$GITHUB_SHA/}"
+            "k6 report=${K6_REPORT:+$K6_REPORT/$GITHUB_SHA/}" \
+            "ZAP report=${ZAP_REPORT:+$ZAP_REPORT/$GITHUB_SHA/}"
 
   # a required reviewer on the production environment makes this job wait for approval
   deploy-prod:
-    needs: deploy-stage
+    needs: [deploy-stage, zap-scan]
+    # waits for the ZAP report, so it can be read before approving;
+    # ZAP is report only, so a failed scan does not stop this
+    if: ${{ !cancelled() && needs.deploy-stage.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -383,7 +424,7 @@ jobs:
 
   # final Slack message: live, rolled back, or the stage where the deploy stopped
   notify-result:
-    needs: [ci, build-and-push, deploy-test, deploy-stage, deploy-prod]
+    needs: [ci, build-and-push, deploy-test, deploy-stage, zap-scan, deploy-prod]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -401,6 +442,12 @@ jobs:
           K6_P95: ${{ needs.deploy-stage.outputs.k6-p95 }}
           K6_FAILED: ${{ needs.deploy-stage.outputs.k6-failed }}
           K6_REPORT: ${{ needs.deploy-stage.outputs.k6-report }}
+          ZAP_RESULT: ${{ needs.zap-scan.result }}
+          ZAP_PASSED: ${{ needs.zap-scan.outputs.zap-passed }}
+          ZAP_HIGH: ${{ needs.zap-scan.outputs.zap-high }}
+          ZAP_MEDIUM: ${{ needs.zap-scan.outputs.zap-medium }}
+          ZAP_LOW: ${{ needs.zap-scan.outputs.zap-low }}
+          ZAP_REPORT: ${{ needs.zap-scan.outputs.zap-report }}
           PROD_URL: ${{ needs.deploy-prod.outputs.url }}
           ROLLBACK_RESULT: ${{ needs.deploy-prod.outputs.rollback-result }}
           ROLLBACK_VERSION: ${{ needs.deploy-prod.outputs.rollback-version }}
@@ -424,6 +471,13 @@ jobs:
           if [ -n "$K6_RESULT" ]; then
             stages+="
           $(icon "$K6_RESULT") k6 - p95 ${K6_P95:-?} ms (limit 1000 ms), failed requests ${K6_FAILED:-?}% (limit 1%)"
+          fi
+          if [ "$ZAP_RESULT" = "success" ]; then
+            stages+="
+          🔒 ZAP - ${ZAP_PASSED:-?} passed, ${ZAP_HIGH:-?} High, ${ZAP_MEDIUM:-?} Medium, ${ZAP_LOW:-?} Low"
+          elif [ "$ZAP_RESULT" = "failure" ]; then
+            stages+="
+          ⚠️ ZAP - scan did not finish (report only, deploy not blocked)"
           fi
           stages+="
           $(icon "$PROD_RESULT") Production"
@@ -464,4 +518,5 @@ jobs:
           $stages" \
             "Open app=$app_url" \
             "k6 report=${K6_REPORT:+$K6_REPORT/$GITHUB_SHA/}" \
+            "ZAP report=${ZAP_REPORT:+$ZAP_REPORT/$GITHUB_SHA/}" \
             "Pipeline run=$run_url"
