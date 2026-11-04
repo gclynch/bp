@@ -265,6 +265,28 @@ jobs:
             echo "ZAP report: ${{ steps.pages.outputs.url }}/$GITHUB_SHA/ (latest run: ${{ steps.pages.outputs.url }}/latest/)"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # these two only add a clickable report link to the job box in the run graph,
+  # the same way the deploy jobs show the site URL
+  k6-report:
+    needs: deploy-stage
+    if: ${{ !cancelled() && needs.deploy-stage.outputs.k6-report != '' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: k6-report
+      url: ${{ needs.deploy-stage.outputs.k6-report }}/${{ github.sha }}/
+    steps:
+      - run: echo "k6 report is linked on this job"
+
+  zap-report:
+    needs: zap-scan
+    if: ${{ !cancelled() && needs.zap-scan.outputs.zap-report != '' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: zap-report
+      url: ${{ needs.zap-scan.outputs.zap-report }}/${{ github.sha }}/
+    steps:
+      - run: echo "ZAP report is linked on this job"
+
   # tells Slack that stage passed, ZAP has run and production is waiting for approval
   notify-approval:
     needs: [deploy-stage, zap-scan]
@@ -279,6 +301,7 @@ jobs:
         env:
           K6_REPORT: ${{ needs.deploy-stage.outputs.k6-report }}
           ZAP_REPORT: ${{ needs.zap-scan.outputs.zap-report }}
+          METRICS_URL: ${{ vars.AZURE_DASHBOARD_URL }}
         run: |
           {
             echo "## Test reports"
@@ -287,6 +310,9 @@ jobs:
             fi
             if [ -n "$ZAP_REPORT" ]; then
               echo "- [OWASP ZAP security report]($ZAP_REPORT/$GITHUB_SHA/)"
+            fi
+            if [ -n "$METRICS_URL" ]; then
+              echo "- [Production metrics dashboard]($METRICS_URL)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -301,6 +327,7 @@ jobs:
           ZAP_MEDIUM: ${{ needs.zap-scan.outputs.zap-medium }}
           ZAP_LOW: ${{ needs.zap-scan.outputs.zap-low }}
           ZAP_REPORT: ${{ needs.zap-scan.outputs.zap-report }}
+          METRICS_URL: ${{ vars.AZURE_DASHBOARD_URL }}
         run: |
           subject=$(git log -1 --format=%s | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
@@ -322,7 +349,8 @@ jobs:
           ⏳ Production - waiting for approval" \
             "Review and approve=$run_url" \
             "k6 report=${K6_REPORT:+$K6_REPORT/$GITHUB_SHA/}" \
-            "ZAP report=${ZAP_REPORT:+$ZAP_REPORT/$GITHUB_SHA/}"
+            "ZAP report=${ZAP_REPORT:+$ZAP_REPORT/$GITHUB_SHA/}" \
+            "App metrics=$METRICS_URL"
 
   # a required reviewer on the production environment makes this job wait for approval
   deploy-prod:
@@ -448,6 +476,7 @@ jobs:
           ZAP_MEDIUM: ${{ needs.zap-scan.outputs.zap-medium }}
           ZAP_LOW: ${{ needs.zap-scan.outputs.zap-low }}
           ZAP_REPORT: ${{ needs.zap-scan.outputs.zap-report }}
+          METRICS_URL: ${{ vars.AZURE_DASHBOARD_URL }}
           PROD_URL: ${{ needs.deploy-prod.outputs.url }}
           ROLLBACK_RESULT: ${{ needs.deploy-prod.outputs.rollback-result }}
           ROLLBACK_VERSION: ${{ needs.deploy-prod.outputs.rollback-version }}
@@ -519,4 +548,5 @@ jobs:
             "Open app=$app_url" \
             "k6 report=${K6_REPORT:+$K6_REPORT/$GITHUB_SHA/}" \
             "ZAP report=${ZAP_REPORT:+$ZAP_REPORT/$GITHUB_SHA/}" \
+            "App metrics=$METRICS_URL" \
             "Pipeline run=$run_url"
