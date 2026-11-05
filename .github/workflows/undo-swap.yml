@@ -1,0 +1,103 @@
+name: Undo Swap - BP Calculator
+
+# manual undo of the last slot swap: Actions tab -> "Undo Swap - BP Calculator" -> Run workflow
+# only works while the slot still holds the version the swap replaced; otherwise use rollback.yml
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+# never runs at the same time as a deploy or rollback (shared with deploy.yml and rollback.yml)
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: praveenps025/bpcalc
+  RESOURCE_GROUP: TUD-Continous-Delivery
+  SLOT_NAME: staging
+
+jobs:
+  undo-swap:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.slot.outputs.live-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # the slot must hold the version the last swap replaced. After a rejected swap it holds a
+      # version nobody approved, and this check stops that version going live.
+      - name: Check the slot holds the previous version
+        id: slot
+        run: |
+          live_host=$(az webapp show -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --query defaultHostName -o tsv)
+          slot_host=$(az webapp show -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --slot "$SLOT_NAME" --query defaultHostName -o tsv)
+          version=$(curl -fsS -o /dev/null -D - --max-time 60 "https://$slot_host/" 2>/dev/null \
+            | awk 'tolower($1) == "x-app-version:" { print $2 }' | tr -d '\r' || true)
+          docker pull -q "$IMAGE_NAME:previous"
+          previous=$(docker image inspect "$IMAGE_NAME:previous" \
+            --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^APP_VERSION=//p')
+          if [ -z "$version" ] || [ "$version" != "$previous" ]; then
+            echo "::error::Slot has '${version:-no response}', not the previous version '$previous'. Use the rollback workflow instead."
+            exit 1
+          fi
+          echo "Undoing the swap back to $version"
+          {
+            echo "live-url=https://$live_host"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Swap slots back
+        run: |
+          az webapp deployment slot swap -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --slot "$SLOT_NAME" --target-slot production
+
+      - name: Health check
+        run: |
+          bash .github/scripts/health-check.sh "${{ steps.slot.outputs.live-url }}" "${{ steps.slot.outputs.version }}"
+          {
+            echo "## Swap undone"
+            echo "Production is now running \`${{ steps.slot.outputs.version }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # the restored version is live and healthy, so it becomes the stable one;
+      # otherwise an automatic rollback could go to the version that was just undone
+      - name: Mark this version as stable
+        run: docker buildx imagetools create -t "$IMAGE_NAME:stable" "$IMAGE_NAME:${{ steps.slot.outputs.version }}"
+
+      - name: Slack - undo result
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+          VERSION: ${{ steps.slot.outputs.version }}
+          APP_URL: ${{ steps.slot.outputs.live-url }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$JOB_STATUS" = "success" ]; then
+            title="⚠️ Swap undone, production is back on ${VERSION::7}"
+            message="Undo by *$GITHUB_ACTOR*: production is running \`${VERSION::7}\` and passed the health check."
+          else
+            title="❌ Undo swap failed"
+            message="Undo by *$GITHUB_ACTOR* did not finish. Check the run."
+          fi
+          bash .github/scripts/slack-notify.sh "$title" "$message" \
+            "Open app=$APP_URL" \
+            "Undo run=$run_url"
