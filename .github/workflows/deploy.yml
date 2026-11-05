@@ -19,6 +19,8 @@ concurrency:
 env:
   IMAGE_NAME: praveenps025/bpcalc
   APP_DIR: BPCalculator_Python
+  RESOURCE_GROUP: TUD-Continous-Delivery
+  SLOT_NAME: staging
 
 jobs:
   # all CI checks (tests, coverage, code analysis, security, Docker) - see ci.yml
@@ -368,14 +370,14 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      RESOURCE_GROUP: TUD-Continous-Delivery
-      SLOT_NAME: staging
-    # site and automatic rollback result for the Slack message
+    # site and automatic rollback result for the Slack message;
+    # use-slots passes USE_SLOTS on, because a job's own "if" can't read environment variables
     outputs:
       url: ${{ steps.deploy.outputs.webapp-url || steps.sites.outputs.live-url }}
-      rollback-result: ${{ steps.swap-back.outcome == 'success' && 'success' || steps.rollback.outcome }}
+      rollback-result: ${{ steps.rollback.outcome }}
       rollback-version: ${{ steps.stable.outputs.version || steps.sites.outputs.live-version }}
+      use-slots: ${{ vars.USE_SLOTS }}
+      live-version: ${{ steps.sites.outputs.live-version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -402,7 +404,7 @@ jobs:
         if: vars.USE_SLOTS != 'true'
         run: bash .github/scripts/health-check.sh "${{ steps.deploy.outputs.webapp-url }}" "${{ github.sha }}"
 
-      # ---- slot path: deploy to the slot, check it, then swap it into production ----
+      # ---- slot path: deploy to the slot and check it; swap-prod does the swap ----
 
       - name: Azure login
         if: vars.USE_SLOTS == 'true'
@@ -444,45 +446,36 @@ jobs:
         if: vars.USE_SLOTS == 'true'
         run: bash .github/scripts/health-check.sh "${{ steps.sites.outputs.slot-url }}" "${{ github.sha }}"
 
-      - name: Swap slot into production
+      - name: Announce slot ready for checking
         if: vars.USE_SLOTS == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLOT_URL: ${{ steps.sites.outputs.slot-url }}
         run: |
-          az webapp deployment slot swap -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
-            --slot "$SLOT_NAME" --target-slot production
+          {
+            echo "## Ready to swap"
+            echo "Check the new version at $SLOT_URL, then approve swap-prod to send it live."
+          } >> "$GITHUB_STEP_SUMMARY"
+          bash .github/scripts/slack-notify.sh \
+            "🟢 BP Calculator ${GITHUB_SHA::7} is ready on the $SLOT_NAME slot" \
+            "Check the slot, then approve *swap-prod* to send it live." \
+            "Open slot=$SLOT_URL" \
+            "Pipeline run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
-      - name: Health check after swap
-        id: swap-health
-        if: vars.USE_SLOTS == 'true'
-        run: bash .github/scripts/health-check.sh "${{ steps.sites.outputs.live-url }}" "${{ github.sha }}"
+      # ---- normal path: record the new version ----
 
-      # ---- both paths: record the new version ----
-
-      # keep the version this deploy replaces as "previous", so a manual rollback can go back to it
-      # (skipped when re-deploying the version that is already stable)
-      - name: Keep current stable version as previous
-        run: |
-          if ! docker pull -q ${{ env.IMAGE_NAME }}:stable; then
-            echo "No stable image yet, nothing to keep"
-            exit 0
-          fi
-          current=$(docker image inspect ${{ env.IMAGE_NAME }}:stable \
-            --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^APP_VERSION=//p')
-          if [ -n "$current" ] && [ "$current" != "${{ github.sha }}" ]; then
-            docker buildx imagetools create -t ${{ env.IMAGE_NAME }}:previous ${{ env.IMAGE_NAME }}:$current
-            echo "Previous version is now $current"
-          fi
-
-      # the "stable" tag always points at the last version that passed the live health check
       - name: Mark this version as stable
-        run: docker buildx imagetools create -t ${{ env.IMAGE_NAME }}:stable ${{ env.IMAGE_NAME }}:${{ github.sha }}
+        if: vars.USE_SLOTS != 'true'
+        run: bash .github/scripts/mark-stable.sh "${{ env.IMAGE_NAME }}" "${{ github.sha }}"
 
       # same short SHA as the "Version" label in the corner of the calculator page
       - name: Show deployed version
+        if: vars.USE_SLOTS != 'true'
         run: |
           {
             echo "## Deployed to production"
             echo "Version: \`${GITHUB_SHA::7}\` (full SHA: \`$GITHUB_SHA\`)"
-            echo "Site: ${{ steps.deploy.outputs.webapp-url || steps.sites.outputs.live-url }}"
+            echo "Site: ${{ steps.deploy.outputs.webapp-url }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # ---- automatic rollback: only if the deploy or the health check failed ----
@@ -518,7 +511,57 @@ jobs:
             echo "Version \`${{ github.sha }}\` failed, so production was rolled back to the last stable version \`${{ steps.stable.outputs.version }}\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # ---- slot path: the old version is still running in the slot, so swap it back ----
+  # slot path only: swaps the checked slot into production. It uses the production environment
+  # again, so GitHub asks for a second approval, and the Azure login trust still applies.
+  swap-prod:
+    needs: deploy-prod
+    if: ${{ !cancelled() && needs.deploy-prod.result == 'success' && needs.deploy-prod.outputs.use-slots == 'true' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ needs.deploy-prod.outputs.url }}
+    # id-token: write lets this job log in to Azure with OIDC
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      swap-back-result: ${{ steps.swap-back.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Swap slot into production
+        run: |
+          az webapp deployment slot swap -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --slot "$SLOT_NAME" --target-slot production
+
+      - name: Health check after swap
+        id: swap-health
+        run: bash .github/scripts/health-check.sh "${{ needs.deploy-prod.outputs.url }}" "${{ github.sha }}"
+
+      - name: Mark this version as stable
+        run: bash .github/scripts/mark-stable.sh "${{ env.IMAGE_NAME }}" "${{ github.sha }}"
+
+      - name: Show deployed version
+        run: |
+          {
+            echo "## Deployed to production"
+            echo "Version: \`${GITHUB_SHA::7}\` (full SHA: \`$GITHUB_SHA\`)"
+            echo "Site: ${{ needs.deploy-prod.outputs.url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- the old version is still running in the slot, so swap it back ----
 
       - name: Swap back
         id: swap-back
@@ -528,17 +571,17 @@ jobs:
             --slot "$SLOT_NAME" --target-slot production
 
       - name: Health check after swap back
-        if: failure() && steps.swap-back.outcome == 'success' && steps.sites.outputs.live-version != ''
+        if: failure() && steps.swap-back.outcome == 'success' && needs.deploy-prod.outputs.live-version != ''
         run: |
-          bash .github/scripts/health-check.sh "${{ steps.sites.outputs.live-url }}" "${{ steps.sites.outputs.live-version }}"
+          bash .github/scripts/health-check.sh "${{ needs.deploy-prod.outputs.url }}" "${{ needs.deploy-prod.outputs.live-version }}"
           {
             echo "## Deployment swapped back"
-            echo "Version \`${{ github.sha }}\` failed after the swap, so production was swapped back to \`${{ steps.sites.outputs.live-version }}\`."
+            echo "Version \`${{ github.sha }}\` failed after the swap, so production was swapped back to \`${{ needs.deploy-prod.outputs.live-version }}\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
   # final Slack message: live, rolled back, or the stage where the deploy stopped
   notify-result:
-    needs: [ci, build-and-push, deploy-test, deploy-stage, zap-scan, deploy-prod]
+    needs: [ci, build-and-push, deploy-test, deploy-stage, zap-scan, deploy-prod, swap-prod]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -551,7 +594,7 @@ jobs:
           BUILD_RESULT: ${{ needs.build-and-push.result }}
           TEST_RESULT: ${{ needs.deploy-test.result }}
           STAGE_RESULT: ${{ needs.deploy-stage.result }}
-          PROD_RESULT: ${{ needs.deploy-prod.result }}
+          PROD_RESULT: ${{ needs.swap-prod.result != 'skipped' && needs.swap-prod.result || needs.deploy-prod.result }}
           K6_RESULT: ${{ needs.deploy-stage.outputs.k6-result }}
           K6_P95: ${{ needs.deploy-stage.outputs.k6-p95 }}
           K6_FAILED: ${{ needs.deploy-stage.outputs.k6-failed }}
@@ -564,7 +607,7 @@ jobs:
           ZAP_REPORT: ${{ needs.zap-scan.outputs.zap-report }}
           METRICS_URL: ${{ vars.AZURE_DASHBOARD_URL }}
           PROD_URL: ${{ needs.deploy-prod.outputs.url }}
-          ROLLBACK_RESULT: ${{ needs.deploy-prod.outputs.rollback-result }}
+          ROLLBACK_RESULT: ${{ needs.swap-prod.outputs.swap-back-result == 'success' && 'success' || needs.deploy-prod.outputs.rollback-result }}
           ROLLBACK_VERSION: ${{ needs.deploy-prod.outputs.rollback-version }}
         run: |
           icon() {
