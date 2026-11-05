@@ -14,6 +14,8 @@ concurrency:
 
 # each GitHub environment (test, stage, production) has its own
 #   variable AZURE_WEBAPP_NAME and secret AZURE_WEBAPP_PUBLISH_PROFILE
+# setting the variable USE_SLOTS to true on the production environment makes deploy-prod
+#   go through a deployment slot; the slot and a plan that supports slots must exist first
 env:
   IMAGE_NAME: praveenps025/bpcalc
   APP_DIR: BPCalculator_Python
@@ -361,12 +363,19 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: ${{ steps.deploy.outputs.webapp-url }}
+      url: ${{ steps.deploy.outputs.webapp-url || steps.sites.outputs.live-url }}
+    # id-token: write lets the slot path log in to Azure with OIDC
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RESOURCE_GROUP: TUD-Continous-Delivery
+      SLOT_NAME: staging
     # site and automatic rollback result for the Slack message
     outputs:
-      url: ${{ steps.deploy.outputs.webapp-url }}
-      rollback-result: ${{ steps.rollback.outcome }}
-      rollback-version: ${{ steps.stable.outputs.version }}
+      url: ${{ steps.deploy.outputs.webapp-url || steps.sites.outputs.live-url }}
+      rollback-result: ${{ steps.swap-back.outcome == 'success' && 'success' || steps.rollback.outcome }}
+      rollback-version: ${{ steps.stable.outputs.version || steps.sites.outputs.live-version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -375,8 +384,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # ---- normal path: deploy straight onto the live site ----
+
       - name: Deploy to Azure Web App
         id: deploy
+        if: vars.USE_SLOTS != 'true'
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.AZURE_WEBAPP_NAME }}
@@ -387,7 +399,63 @@ jobs:
       # waits for the new version to be live, then checks the pages
       - name: Health check
         id: health
+        if: vars.USE_SLOTS != 'true'
         run: bash .github/scripts/health-check.sh "${{ steps.deploy.outputs.webapp-url }}" "${{ github.sha }}"
+
+      # ---- slot path: deploy to the slot, check it, then swap it into production ----
+
+      - name: Azure login
+        if: vars.USE_SLOTS == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # the live version is what a swap back must restore
+      - name: Find site addresses and live version
+        id: sites
+        if: vars.USE_SLOTS == 'true'
+        run: |
+          live_host=$(az webapp show -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --query defaultHostName -o tsv)
+          slot_host=$(az webapp show -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --slot "$SLOT_NAME" --query defaultHostName -o tsv)
+          live_version=$(curl -fsS -o /dev/null -D - --max-time 30 "https://$live_host/" 2>/dev/null \
+            | awk 'tolower($1) == "x-app-version:" { print $2 }' | tr -d '\r' || true)
+          echo "Live version is '${live_version:-unknown}'"
+          {
+            echo "live-url=https://$live_host"
+            echo "slot-url=https://$slot_host"
+            echo "live-version=$live_version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to slot
+        if: vars.USE_SLOTS == 'true'
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          slot-name: ${{ env.SLOT_NAME }}
+          resource-group-name: ${{ env.RESOURCE_GROUP }}
+          images: index.docker.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      # a failure here stops the job with the live site untouched, so nothing needs rolling back
+      - name: Health check on slot
+        if: vars.USE_SLOTS == 'true'
+        run: bash .github/scripts/health-check.sh "${{ steps.sites.outputs.slot-url }}" "${{ github.sha }}"
+
+      - name: Swap slot into production
+        if: vars.USE_SLOTS == 'true'
+        run: |
+          az webapp deployment slot swap -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --slot "$SLOT_NAME" --target-slot production
+
+      - name: Health check after swap
+        id: swap-health
+        if: vars.USE_SLOTS == 'true'
+        run: bash .github/scripts/health-check.sh "${{ steps.sites.outputs.live-url }}" "${{ github.sha }}"
+
+      # ---- both paths: record the new version ----
 
       # keep the version this deploy replaces as "previous", so a manual rollback can go back to it
       # (skipped when re-deploying the version that is already stable)
@@ -414,7 +482,7 @@ jobs:
           {
             echo "## Deployed to production"
             echo "Version: \`${GITHUB_SHA::7}\` (full SHA: \`$GITHUB_SHA\`)"
-            echo "Site: ${{ steps.deploy.outputs.webapp-url }}"
+            echo "Site: ${{ steps.deploy.outputs.webapp-url || steps.sites.outputs.live-url }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # ---- automatic rollback: only if the deploy or the health check failed ----
@@ -448,6 +516,24 @@ jobs:
           {
             echo "## Deployment rolled back"
             echo "Version \`${{ github.sha }}\` failed, so production was rolled back to the last stable version \`${{ steps.stable.outputs.version }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- slot path: the old version is still running in the slot, so swap it back ----
+
+      - name: Swap back
+        id: swap-back
+        if: failure() && steps.swap-health.outcome == 'failure'
+        run: |
+          az webapp deployment slot swap -g "$RESOURCE_GROUP" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --slot "$SLOT_NAME" --target-slot production
+
+      - name: Health check after swap back
+        if: failure() && steps.swap-back.outcome == 'success' && steps.sites.outputs.live-version != ''
+        run: |
+          bash .github/scripts/health-check.sh "${{ steps.sites.outputs.live-url }}" "${{ steps.sites.outputs.live-version }}"
+          {
+            echo "## Deployment swapped back"
+            echo "Version \`${{ github.sha }}\` failed after the swap, so production was swapped back to \`${{ steps.sites.outputs.live-version }}\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
   # final Slack message: live, rolled back, or the stage where the deploy stopped
