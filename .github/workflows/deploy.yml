@@ -460,7 +460,7 @@ jobs:
             "🟢 BP Calculator ${GITHUB_SHA::7} is ready on the $SLOT_NAME slot" \
             "Check the slot, then approve *swap-prod* to send it live." \
             "Open slot=$SLOT_URL" \
-            "Pipeline run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "Approve swap=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       # ---- normal path: record the new version ----
 
@@ -594,6 +594,7 @@ jobs:
           BUILD_RESULT: ${{ needs.build-and-push.result }}
           TEST_RESULT: ${{ needs.deploy-test.result }}
           STAGE_RESULT: ${{ needs.deploy-stage.result }}
+          SWAP_RESULT: ${{ needs.swap-prod.result }}
           PROD_RESULT: ${{ needs.swap-prod.result != 'skipped' && needs.swap-prod.result || needs.deploy-prod.result }}
           K6_RESULT: ${{ needs.deploy-stage.outputs.k6-result }}
           K6_P95: ${{ needs.deploy-stage.outputs.k6-p95 }}
@@ -669,6 +670,12 @@ jobs:
             app_url="$PROD_URL"
           fi
 
+          # a finished swap can be undone from the Undo Swap workflow
+          undo_url=""
+          if [ "$SWAP_RESULT" = "success" ]; then
+            undo_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/undo-swap.yml"
+          fi
+
           bash .github/scripts/slack-notify.sh "$title" \
             "*Version:* \`$version\` - $subject
           *Pushed by:* $GITHUB_ACTOR
@@ -678,4 +685,5 @@ jobs:
             "k6 report=${K6_REPORT:+$K6_REPORT/$GITHUB_SHA/}" \
             "ZAP report=${ZAP_REPORT:+$ZAP_REPORT/$GITHUB_SHA/}" \
             "App metrics=$METRICS_URL" \
+            "Undo swap=$undo_url" \
             "Pipeline run=$run_url"
