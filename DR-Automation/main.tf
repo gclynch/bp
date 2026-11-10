@@ -12,7 +12,7 @@ terraform {
   # State lives in Azure so every pipeline run remembers what it built.
   # The storage account name is passed in by the workflow.
   backend "azurerm" {
-    resource_group_name = "TUD-CD-DR"
+    resource_group_name = "TUD-CD-DR-1"
     container_name      = "tfstate"
     key                 = "dr.tfstate"
     use_oidc            = true
@@ -33,7 +33,7 @@ provider "azurerm" {
 # The resource group is created by hand in the portal,
 # so the pipeline only needs Contributor on this group.
 data "azurerm_resource_group" "dr" {
-  name = "TUD-CD-DR"
+  name = "TUD-CD-DR-1"
 }
 
 # App Service plan: Linux, free F1 tier
