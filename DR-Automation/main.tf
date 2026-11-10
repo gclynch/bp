@@ -1,4 +1,4 @@
-# DR site for the BP calculator in Italy North (prod runs in Austria East).
+# DR site for the BP calculator in Spain Central (prod runs in Austria East).
 # Runs from GitHub Actions (dr-infra-create.yml); Azure login comes from OIDC via the ARM_* env vars.
 
 terraform {
@@ -20,11 +20,17 @@ terraform {
   }
 }
 
+# DR region. Azure for Students only allows: austriaeast, switzerlandnorth,
+# denmarkeast, spaincentral, germanywestcentral. Prod is austriaeast.
+locals {
+  location = "spaincentral"
+}
+
 provider "azurerm" {
   features {}
 }
 
-# The resource group is created by hand in the portal (Italy North),
+# The resource group is created by hand in the portal,
 # so the pipeline only needs Contributor on this group.
 data "azurerm_resource_group" "dr" {
   name = "TUD-CD-DR"
@@ -34,7 +40,7 @@ data "azurerm_resource_group" "dr" {
 resource "azurerm_service_plan" "dr" {
   name                = "BP-Calc-BR"
   resource_group_name = data.azurerm_resource_group.dr.name
-  location            = data.azurerm_resource_group.dr.location
+  location            = local.location
   os_type             = "Linux"
   sku_name            = "F1"
 }
@@ -43,7 +49,7 @@ resource "azurerm_service_plan" "dr" {
 resource "azurerm_linux_web_app" "dr" {
   name                = "BP-Calc-app-DR"
   resource_group_name = data.azurerm_resource_group.dr.name
-  location            = data.azurerm_resource_group.dr.location
+  location            = local.location
   service_plan_id     = azurerm_service_plan.dr.id
   https_only          = true
 

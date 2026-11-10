@@ -1,4 +1,4 @@
-# Builds the DR site in Italy North with Terraform (DR-Automation/main.tf).
+# Builds the DR site in Spain Central with Terraform (DR-Automation/main.tf).
 # Manual only: Actions tab -> DR Infra Create -> Run workflow.
 #
 # Needs:
