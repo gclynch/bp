@@ -1,10 +1,10 @@
-# Builds the DR site in Italy North with Terraform (DR-Automation/main.tf).
+# Builds the DR site in Spain Central with Terraform (DR-Automation/main.tf).
 # Manual only: Actions tab -> DR Infra Create -> Run workflow.
 #
 # Needs:
 #   secrets AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (already set for prod)
 #   variable TF_STATE_STORAGE_ACCOUNT = storage account that holds the Terraform state
-#   oidc-msi-9c5c: Contributor on TUD-CD-DR, Storage Blob Data Contributor on the state account
+#   oidc-msi-9c5c: Contributor on TUD-CD-DR-1, Storage Blob Data Contributor on the state account
 
 name: DR Infra Create
 
