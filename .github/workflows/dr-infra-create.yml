@@ -1,0 +1,67 @@
+# Builds the DR site in Italy North with Terraform (DR-Automation/main.tf).
+# Manual only: Actions tab -> DR Infra Create -> Run workflow.
+#
+# Needs:
+#   secrets AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (already set for prod)
+#   variable TF_STATE_STORAGE_ACCOUNT = storage account that holds the Terraform state
+#   oidc-msi-9c5c: Contributor on TUD-CD-DR, Storage Blob Data Contributor on the state account
+
+name: DR Infra Create
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write # lets the job sign in to Azure with OIDC
+  contents: read
+
+concurrency: dr-infra # never two Terraform runs at once
+
+jobs:
+  dr-infra-create:
+    runs-on: ubuntu-latest
+    # reuses the OIDC trust set up for production, and asks for approval before running
+    environment: production
+
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    defaults:
+      run:
+        working-directory: DR-Automation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.5
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init -input=false -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}"
+
+      - name: Terraform plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Terraform apply
+        run: terraform apply -input=false tfplan
+
+      # F1 pulls the image on first start, so give it up to 5 minutes
+      - name: Check the DR site is up
+        run: |
+          url=$(terraform output -raw webapp_url)
+          for i in $(seq 1 20); do
+            if curl -fsS -o /dev/null --max-time 30 "$url/"; then
+              echo "DR site is up: $url"
+              echo "DR site is up: $url" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Not up yet ($i/20), waiting..."
+            sleep 15
+          done
+          echo "DR site did not come up: $url"
+          exit 1
