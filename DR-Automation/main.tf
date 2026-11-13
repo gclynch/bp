@@ -28,6 +28,11 @@ locals {
 
 provider "azurerm" {
   features {}
+
+  # The pipeline identity only has Contributor on the DR resource group, so it
+  # can't register resource providers across the subscription. Microsoft.Web
+  # (App Service) is already registered, which is all this site needs.
+  resource_provider_registrations = "none"
 }
 
 # The resource group is created by hand in the portal,
