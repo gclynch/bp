@@ -39,3 +39,22 @@ jobs:
 
       - name: Terraform destroy
         run: terraform destroy -auto-approve
+
+      # runs from the repo root, because the job default is DR-Automation
+      - name: Slack - DR destroy result
+        if: always()
+        working-directory: .
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$JOB_STATUS" = "success" ]; then
+            title="🗑️ DR site destroyed"
+            message="DR destroy by *$GITHUB_ACTOR*: the DR plan and web app in Spain Central are deleted."
+          else
+            title="❌ DR destroy failed"
+            message="DR destroy by *$GITHUB_ACTOR* did not finish, so some DR resources may still exist. Check the run."
+          fi
+          bash .github/scripts/slack-notify.sh "$title" "$message" \
+            "View run=$run_url"

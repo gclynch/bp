@@ -52,8 +52,10 @@ jobs:
 
       # F1 pulls the image on first start, so give it up to 5 minutes
       - name: Check the DR site is up
+        id: check
         run: |
           url=$(terraform output -raw webapp_url)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
           for i in $(seq 1 20); do
             if curl -fsS -o /dev/null --max-time 30 "$url/"; then
               echo "DR site is up: $url"
@@ -65,3 +67,24 @@ jobs:
           done
           echo "DR site did not come up: $url"
           exit 1
+
+      # runs from the repo root, because the job default is DR-Automation
+      - name: Slack - DR create result
+        if: always()
+        working-directory: .
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+          DR_URL: ${{ steps.check.outputs.url }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$JOB_STATUS" = "success" ]; then
+            title="🌍 DR site is up in Spain Central"
+            message="DR create by *$GITHUB_ACTOR*: the DR site is running and answered the health check."
+          else
+            title="❌ DR site creation failed"
+            message="DR create by *$GITHUB_ACTOR* did not finish. Check the run."
+          fi
+          bash .github/scripts/slack-notify.sh "$title" "$message" \
+            "Open DR site=$DR_URL" \
+            "View run=$run_url"
