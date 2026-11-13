@@ -39,9 +39,10 @@ The original .NET project is **unchanged** and still in `../BPCalculator`, so bo
 | F4 | Unhandled errors | Not logged by the template | Logged with stack trace and request id (`app.py:37-38`) | Small improvement. `_logger` was injected in C# but never used. |
 | F5 | HTML5 attributes on inputs | `type="number"` + `data-val-*` | Same, **plus** `min`, `max`, `required` | WTForms adds them automatically. jQuery Validation sets `novalidate` on the form, so users still see the same messages. |
 | F6 | Anti-forgery field name | `__RequestVerificationToken` | `csrf_token` | Framework naming. A POST without a valid token still gets **HTTP 400** in both. |
-| F7 | Version header and label | None | Every response has `X-App-Version` (commit SHA from the `APP_VERSION` env var, read into config at `config.py:16-17`, `dev` locally) (`app.py:54-59`). The calculator page also shows `Version <short SHA>` in its bottom-right corner, with the full SHA on hover (`app.py:61-64`, `index.html:36`) | The deploy pipeline uses the header to confirm which version is live before marking it stable or after a rollback. The label lets a person check by eye that the latest change is deployed. |
+| F7 | Version header and label | None | Every response has `X-App-Version` (commit SHA from the `APP_VERSION` env var, read into config at `config.py:16-17`, `dev` locally) (`app.py:54-59`). The calculator page also shows `Version <short SHA>` in its bottom-right corner, with the full SHA on hover (`app.py:61-64`, `index.html:37`) | The deploy pipeline uses the header to confirm which version is live before marking it stable or after a rollback. The label lets a person check by eye that the latest change is deployed. |
 | F8 | Security headers and cookie flags | None | Every response has CSP, `X-Frame-Options`, `X-Content-Type-Options`, HSTS, `Referrer-Policy`, `Permissions-Policy` and the `Cross-Origin-*` policies (`config.py:21-37`, `app.py:66-73`). Pages also get `Cache-Control: no-cache, no-store, must-revalidate`; static files stay cacheable. The session cookie is `Secure` and `SameSite=Lax`, except in Development and Testing, which use plain HTTP (`config.py:18-20`). The version label's inline style moved to `static/css/version.css`, because the CSP blocks inline styles | Fixes the warnings from the OWASP ZAP scan of stage. Do not use `Referrer-Policy: no-referrer`: Flask-WTF can require a `Referer` on HTTPS POSTs. |
 | F9 | Client-side libraries | jQuery 3.3.1, jQuery Validation 1.17.0 | jQuery 3.7.1, jQuery Validation 1.22.1 | OWASP ZAP flagged the old versions as vulnerable (High). jQuery stays on 3.x because Bootstrap 4.3.1 and jQuery Unobtrusive Validation need it. The .NET app keeps the old versions. |
+| F10 | Advice per category | None | Short, plain advice for each category (`ADVICE` and the `advice` property, `bloodpressure.py:35-48`), shown under the category in its own `<p id="bp-advice">` (`index.html:32`). No advice when the reading is invalid | The CA1 new feature (user story: as a patient, I want simple advice for my category, so that I know what to do next). Kept out of the category `<div>`, so the BDD step that reads the category still works. |
 
 Everything else (URLs, form field names/ids, validation rules and messages, page markup, CSS, JS) was kept the same on purpose. Existing UI tests that use `id="BP_Systolic"` or `name="BP.Systolic"` will still work.
 
@@ -95,6 +96,7 @@ The C# class mixed **domain logic** (values, category) with **validation** (`[Ra
 | 26 | `[Range(DiastolicMin, ...)]` | `forms.py` 19, 35-36 | `NumberRange(...)` | Moved to the form |
 | 27 | `public int Diastolic { get; set; }` | 22 | `diastolic: int  # mmHg` | Property → dataclass field |
 | 29-38 | `Category` getter returning `new BPCategory()` | 24-33 | `@property def category(...)` with real logic | **F1: implemented** |
+| — | — | 35-48 | `@property def advice(...)` + `ADVICE` text per category | **New** (F10) |
 
 **Side by side: enum**
 ```csharp
@@ -320,8 +322,9 @@ Validation messages are identical to the original:
 | 25-27 | Submit button | 25-27 | identical | Unchanged |
 | 28 | `@if (ViewData.ModelState.IsValid)` | 28 | `{% if bp %}` | `bp` is only set when the form is valid |
 | 31 | `@Html.DisplayFor(model => model.BP.Category, ...)` | 30 | `{{ bp.category.value }}` | Shows the display name, e.g. "Ideal Blood Pressure" |
-| — | — | 36 | `<small id="app-version">Version {{ app_version[:7] }}</small>`, fixed to the bottom-right corner | **New** (F7) |
-| 38-40 | `@section Scripts { await Html.RenderPartialAsync("_ValidationScriptsPartial"); }` | 39-41 | `{% block scripts %}{% include "_validation_scripts.html" %}{% endblock %}` | Section/partial → block/include |
+| — | — | 32 | `<p id="bp-advice">{{ bp.advice }}</p>` | **New** (F10) |
+| — | — | 37 | `<small id="app-version">Version {{ app_version[:7] }}</small>`, fixed to the bottom-right corner | **New** (F7) |
+| 38-40 | `@section Scripts { await Html.RenderPartialAsync("_ValidationScriptsPartial"); }` | 40-42 | `{% block scripts %}{% include "_validation_scripts.html" %}{% endblock %}` | Section/partial → block/include |
 
 ```html
 <!-- OLD  Index.cshtml:14-18, 28-33 -->
@@ -456,7 +459,7 @@ The markup is identical line for line, apart from the new `version.css` link at 
 | File | Purpose |
 |---|---|
 | `tests/conftest.py` | pytest fixture: creates the app with `TestingConfig` and a test client |
-| `tests/test_bloodpressure.py` | 13 unit tests: every category boundary + display names |
+| `tests/test_bloodpressure.py` | 18 unit tests: every category boundary + display names + advice per category (F10) |
 | `tests/test_app.py` | 11 integration tests: GET defaults, `data-val-*` attributes, valid POST, out-of-range, Systolic ≤ Diastolic, missing value, `/Privacy`, `/Error` no-cache headers, static files + version hash, **CSRF rejection (400)**, **unhandled exception → error page (500)** |
 | `README.md` | Setup, run and test instructions |
 | `MIGRATION.md` | This document |

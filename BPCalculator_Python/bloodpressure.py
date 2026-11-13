@@ -31,3 +31,18 @@ class BloodPressure:
         if self.systolic >= 90 or self.diastolic >= 60:
             return BPCategory.IDEAL
         return BPCategory.LOW
+
+    # simple advice for the patient, based on the category
+    @property
+    def advice(self) -> str:
+        return ADVICE[self.category]
+
+
+# short, plain advice for each category (shown under the category)
+ADVICE = {
+    BPCategory.LOW: ("Your blood pressure is low. Drink water and stand up slowly. "
+                     "See a doctor if you feel dizzy."),
+    BPCategory.IDEAL: "Your blood pressure is normal. Keep up the good work!",
+    BPCategory.PRE_HIGH: "Your blood pressure is a bit high. Eat less salt and be more active.",
+    BPCategory.HIGH: "Your blood pressure is high. Please see a doctor.",
+}
