@@ -57,3 +57,8 @@ def category_is(page, category):
 @then("no category is shown")
 def no_category_shown(page):
     assert shown_category(page) is None
+
+
+@then("no advice is shown")
+def no_advice_shown(page):
+    assert 'id="bp-advice"' not in page

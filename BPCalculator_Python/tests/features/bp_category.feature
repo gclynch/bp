@@ -49,3 +49,18 @@ Feature: Blood pressure category calculator
     When I enter only diastolic 60
     Then I see "The Systolic field is required."
     And no category is shown
+
+  Scenario Outline: Show simple advice for the category
+    When I enter systolic <systolic> and diastolic <diastolic>
+    Then I see "<advice>"
+
+    Examples:
+      | systolic | diastolic | advice                            |
+      | 85       | 55        | See a doctor if you feel dizzy.   |
+      | 110      | 70        | Keep up the good work!            |
+      | 125      | 82        | Eat less salt and be more active. |
+      | 145      | 92        | Please see a doctor.              |
+
+  Scenario: No advice for an invalid reading
+    When I enter systolic 80 and diastolic 90
+    Then no advice is shown
