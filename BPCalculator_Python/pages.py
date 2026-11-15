@@ -55,7 +55,8 @@ def render_error_page(status_code):
 @pages.before_request
 def simulated_failure():
     import os
-    if request.endpoint == "pages.privacy" and os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+    telemetry_on = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if request.endpoint == "pages.privacy" and telemetry_on:
         try:
             raise RuntimeError("Simulated failure for the rollback demo")
         except RuntimeError:
