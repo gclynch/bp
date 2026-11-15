@@ -47,3 +47,16 @@ def render_error_page(status_code):
     response.headers["Cache-Control"] = "no-store,no-cache"
     response.headers["Pragma"] = "no-cache"
     return response
+
+
+# rollback demo (MIGRATION.md F12): a deliberate "bad release". Where telemetry is on
+# (only prod has the connection string) /Privacy logs an exception, the telemetry check
+# after the deploy sees it and the pipeline rolls back. Revert this after the demo.
+@pages.before_request
+def simulated_failure():
+    import os
+    if request.endpoint == "pages.privacy" and os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+        try:
+            raise RuntimeError("Simulated failure for the rollback demo")
+        except RuntimeError:
+            logger.exception("Simulated failure")
