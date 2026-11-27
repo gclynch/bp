@@ -8,8 +8,6 @@ Built for the *Continuous Software Deployment* module of the MSc in Computing (D
 |:---:|:---:|:---:|:---:|:---:|
 | test coverage | unit + BDD tests | p95 under load (k6) | ZAP high/medium/low alerts | pull requests shipped |
 
-**Links:** [Latest k6 load-test report](https://pso25.github.io/SoftwareDelivery_bp_ca1/k6/latest/) · [Live app](https://ca1-czfbfmf2dhaxhger.austriaeast-01.azurewebsites.net)
-
 ---
 
 ## How a change reaches production
